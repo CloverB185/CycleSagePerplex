@@ -3,7 +3,7 @@ import { AuthProvider } from '@/components/AuthProvider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'OnsitePro',
+  title: 'OnsitePro Claude',
   description: 'Construction site operational truth capture',
 }
 

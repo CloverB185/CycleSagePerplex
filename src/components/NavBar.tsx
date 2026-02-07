@@ -36,7 +36,7 @@ export default function NavBar() {
               onClick={() => router.push(roleHome)}
               className="font-bold text-brand-700 text-lg"
             >
-              OnsitePro
+              OnsitePro Claude
             </button>
             <span className="badge bg-brand-100 text-brand-700 text-xs capitalize">
               {user.role}
