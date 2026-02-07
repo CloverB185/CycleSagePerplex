@@ -4,41 +4,53 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-site-50 text-site-800 antialiased;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-brand-600 text-white px-4 py-2.5 rounded-lg font-medium
-           hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50
-           disabled:cursor-not-allowed transition-colors;
+    @apply bg-construction-500 text-white px-5 py-3 rounded-action font-semibold text-base
+           hover:bg-construction-600 active:bg-construction-700 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-150 shadow-action;
   }
   .btn-secondary {
-    @apply bg-white text-gray-700 px-4 py-2.5 rounded-lg font-medium
-           border border-gray-300 hover:bg-gray-50 active:bg-gray-100
-           disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+    @apply bg-white text-site-700 px-5 py-3 rounded-action font-semibold text-base
+           border-2 border-site-200 hover:bg-site-50 hover:border-site-300
+           active:bg-site-100 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
   }
   .btn-danger {
-    @apply bg-safety-red text-white px-4 py-2.5 rounded-lg font-medium
-           hover:bg-red-700 active:bg-red-800 disabled:opacity-50
-           disabled:cursor-not-allowed transition-colors;
+    @apply bg-safety-red text-white px-5 py-3 rounded-action font-semibold text-base
+           hover:bg-red-700 active:bg-red-800 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
+  }
+  .btn-brand {
+    @apply bg-brand-600 text-white px-5 py-3 rounded-action font-semibold text-base
+           hover:bg-brand-700 active:bg-brand-800 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
   }
   .input-field {
-    @apply w-full px-3 py-2.5 border border-gray-300 rounded-lg
-           focus:ring-2 focus:ring-brand-500 focus:border-brand-500
-           placeholder-gray-400 text-base;
+    @apply w-full px-4 py-3 border-2 border-site-200 rounded-xl
+           focus:ring-2 focus:ring-construction-400 focus:border-construction-500
+           placeholder-site-400 text-base bg-white transition-colors;
   }
   .textarea-field {
-    @apply w-full px-3 py-2.5 border border-gray-300 rounded-lg
-           focus:ring-2 focus:ring-brand-500 focus:border-brand-500
-           placeholder-gray-400 text-base resize-none;
+    @apply w-full px-4 py-3 border-2 border-site-200 rounded-xl
+           focus:ring-2 focus:ring-construction-400 focus:border-construction-500
+           placeholder-site-400 text-base resize-none bg-white transition-colors;
   }
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-4;
+    @apply bg-white rounded-2xl shadow-card border border-site-200 p-4
+           transition-shadow duration-200;
+  }
+  .card-interactive {
+    @apply card cursor-pointer hover:shadow-card-hover hover:border-site-300
+           active:scale-[0.98] transition-all duration-150;
   }
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide;
   }
   .badge-open {
     @apply badge bg-red-100 text-red-800;
@@ -50,10 +62,10 @@
     @apply badge bg-green-100 text-green-800;
   }
   .badge-draft {
-    @apply badge bg-gray-100 text-gray-800;
+    @apply badge bg-site-100 text-site-600;
   }
   .badge-submitted {
-    @apply badge bg-blue-100 text-blue-800;
+    @apply badge bg-brand-100 text-brand-700;
   }
   .badge-safety {
     @apply badge bg-red-100 text-red-700;
@@ -65,10 +77,18 @@
     @apply badge bg-amber-100 text-amber-700;
   }
   .badge-other {
-    @apply badge bg-gray-100 text-gray-700;
+    @apply badge bg-site-100 text-site-600;
   }
   .stat-card {
-    @apply card text-center transition-all hover:shadow-md;
+    @apply card text-center transition-all hover:shadow-card-hover;
+  }
+  /* Construction-grade section headers */
+  .section-header {
+    @apply text-xs font-bold text-site-500 uppercase tracking-widest;
+  }
+  /* Large touch target for foreman use */
+  .touch-target {
+    @apply min-h-[56px] flex items-center;
   }
 }
 
@@ -82,10 +102,19 @@
   to { opacity: 1; }
 }
 
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+}
+
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
 
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

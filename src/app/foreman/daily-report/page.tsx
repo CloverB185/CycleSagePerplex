@@ -7,6 +7,20 @@ import EmptyState from '@/components/EmptyState'
 import EvidenceUpload from '@/components/EvidenceUpload'
 import EvidenceList from '@/components/EvidenceList'
 import { useState, useEffect, useCallback } from 'react'
+import {
+  Zap,
+  FileText,
+  Clock,
+  CheckCircle2,
+  Lock,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Send,
+  Save,
+  AlertCircle,
+  Shield,
+} from 'lucide-react'
 
 type Report = {
   id: string
@@ -37,20 +51,21 @@ type ReportListItem = {
   _count?: { annotations: number }
 }
 
+const tabs = [
+  { key: 'quick' as const, label: 'Quick Report', icon: Zap },
+  { key: 'full' as const, label: 'Full Details', icon: FileText },
+  { key: 'history' as const, label: 'History', icon: Clock },
+]
+
 export default function DailyReportPage() {
   const { site, loading: siteLoading } = useSite()
   const { toast } = useToast()
 
   const today = new Date().toISOString().split('T')[0]
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<'today' | 'history'>('today')
-
-  // Report list for history
+  const [activeTab, setActiveTab] = useState<'quick' | 'full' | 'history'>('quick')
   const [reportList, setReportList] = useState<ReportListItem[]>([])
   const [listLoading, setListLoading] = useState(true)
-
-  // Current report (today's or selected from history)
   const [report, setReport] = useState<Report | null>(null)
   const [reportLoading, setReportLoading] = useState(true)
   const [viewingReportId, setViewingReportId] = useState<string | null>(null)
@@ -64,11 +79,9 @@ export default function DailyReportPage() {
   const [qaSafetyConfirmed, setQaSafetyConfirmed] = useState(false)
   const [evidence, setEvidence] = useState<Record<string, unknown>[]>([])
 
-  // Action states
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Load all reports for the site (for both stats and history)
   const loadReportList = useCallback(async () => {
     if (!site) return
     setListLoading(true)
@@ -83,7 +96,6 @@ export default function DailyReportPage() {
     }
   }, [site, toast])
 
-  // Load today's report specifically
   const loadTodayReport = useCallback(async () => {
     if (!site) return
     setReportLoading(true)
@@ -118,7 +130,6 @@ export default function DailyReportPage() {
     }
   }, [site, today, toast])
 
-  // Load a specific report by ID (for history detail view)
   const loadReportDetail = useCallback(async (reportId: string) => {
     setReportLoading(true)
     try {
@@ -126,12 +137,6 @@ export default function DailyReportPage() {
       const data = await res.json()
       if (res.ok && data.report) {
         setReport(data.report)
-        setWorkSummary(data.report.workSummary || '')
-        setPersonnelOnSite(data.report.personnelOnSite || '')
-        setIssuesOrBlockers(data.report.issuesOrBlockers || '')
-        setIncidents(data.report.incidents || '')
-        setWeatherConditions(data.report.weatherConditions || '')
-        setQaSafetyConfirmed(data.report.qaSafetyConfirmed || false)
         setEvidence(data.report.evidence || [])
         setViewingReportId(reportId)
       }
@@ -202,7 +207,6 @@ export default function DailyReportPage() {
     const confirmSubmit = evidence.length === 0
       ? confirm('No evidence attached. Submit anyway?')
       : true
-
     if (!confirmSubmit) return
 
     setSubmitting(true)
@@ -238,25 +242,20 @@ export default function DailyReportPage() {
     }
   }
 
-  // Navigate back to history list from detail view
   const backToHistory = () => {
     setViewingReportId(null)
     loadTodayReport()
   }
 
-  // Switch tabs
-  const switchTab = (tab: 'today' | 'history') => {
+  const switchTab = (tab: 'quick' | 'full' | 'history') => {
     setActiveTab(tab)
-    if (tab === 'today') {
+    if (tab !== 'history') {
       setViewingReportId(null)
       loadTodayReport()
     }
   }
 
-  // Loading states
-  if (siteLoading) {
-    return <LoadingSkeleton lines={4} />
-  }
+  if (siteLoading) return <LoadingSkeleton lines={4} />
 
   if (!site) {
     return (
@@ -270,147 +269,101 @@ export default function DailyReportPage() {
 
   const isSubmitted = report?.status === 'submitted'
   const isViewingHistory = activeTab === 'history' && viewingReportId !== null
+  const todayFormatted = new Date(today + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })
 
   return (
     <div className="space-y-4 pb-8 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">Daily Report</h1>
-        <span className="text-sm text-gray-500">
-          {new Date(today + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
+        <h1 className="text-xl font-bold text-site-800">Daily Report</h1>
+        <span className="text-sm font-medium text-site-500">{todayFormatted}</span>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex bg-gray-100 rounded-xl p-1">
-        <button
-          onClick={() => switchTab('today')}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-            activeTab === 'today'
-              ? 'bg-white text-gray-800 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Today
-        </button>
-        <button
-          onClick={() => switchTab('history')}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-            activeTab === 'history'
-              ? 'bg-white text-gray-800 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          History ({reportList.length})
-        </button>
+      {/* 3-Tab Switcher */}
+      <div className="flex bg-site-100 rounded-2xl p-1 gap-1">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => switchTab(tab.key)}
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                isActive
+                  ? tab.key === 'quick'
+                    ? 'bg-construction-500 text-white shadow-action'
+                    : 'bg-white text-site-800 shadow-card'
+                  : 'text-site-500 hover:text-site-700'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="hidden xs:inline">{tab.label}</span>
+              {tab.key === 'history' && <span className="text-xs opacity-70">({reportList.length})</span>}
+            </button>
+          )
+        })}
       </div>
 
-      {/* ========== TODAY TAB ========== */}
-      {activeTab === 'today' && (
+      {/* ============ QUICK REPORT TAB ============ */}
+      {activeTab === 'quick' && (
         <>
           {reportLoading ? (
-            <LoadingSkeleton lines={5} />
+            <LoadingSkeleton lines={3} />
           ) : (
-            <>
+            <div className="space-y-4">
               {isSubmitted && (
-                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  This report has been submitted and is now immutable. Use annotations for corrections.
+                <div className="bg-green-50 border-2 border-green-200 text-green-800 px-4 py-3 rounded-2xl text-sm flex items-center gap-2 font-medium">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-green-600" />
+                  Report submitted. Switch to Full Details to view annotations.
                 </div>
               )}
 
-              {/* Form Card */}
+              {/* Quick form — work summary only + evidence */}
               <div className="card space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    What was done today? <span className="text-safety-red">*</span>
-                  </label>
-                  <textarea
-                    className="textarea-field"
-                    rows={4}
-                    value={workSummary}
-                    onChange={(e) => setWorkSummary(e.target.value)}
-                    placeholder="Describe work completed today..."
-                    disabled={isSubmitted}
-                    required
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-construction-50 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-construction-600" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-site-800">What happened today?</h2>
+                    <p className="text-xs text-site-500">Just the essentials — add details later</p>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Who was on site?</label>
-                  <textarea
-                    className="textarea-field"
-                    rows={2}
-                    value={personnelOnSite}
-                    onChange={(e) => setPersonnelOnSite(e.target.value)}
-                    placeholder="List personnel present..."
-                    disabled={isSubmitted}
-                  />
-                </div>
+                <textarea
+                  className="textarea-field text-base"
+                  rows={5}
+                  value={workSummary}
+                  onChange={(e) => setWorkSummary(e.target.value)}
+                  placeholder="Poured foundation for Block C, installed rebar in Zone 2..."
+                  disabled={isSubmitted}
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Issues or blockers</label>
-                  <textarea
-                    className="textarea-field"
-                    rows={2}
-                    value={issuesOrBlockers}
-                    onChange={(e) => setIssuesOrBlockers(e.target.value)}
-                    placeholder="Any issues encountered..."
-                    disabled={isSubmitted}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Incidents</label>
-                  <textarea
-                    className="textarea-field"
-                    rows={2}
-                    value={incidents}
-                    onChange={(e) => setIncidents(e.target.value)}
-                    placeholder="Any safety incidents..."
-                    disabled={isSubmitted}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Weather</label>
-                  <input
-                    className="input-field"
-                    value={weatherConditions}
-                    onChange={(e) => setWeatherConditions(e.target.value)}
-                    placeholder="e.g., Sunny, 28°C"
-                    disabled={isSubmitted}
-                  />
-                </div>
-
-                <label className="flex items-center gap-3 py-2">
+                {/* QA checkbox */}
+                <label className="flex items-center gap-3 py-2 touch-target">
                   <input
                     type="checkbox"
                     checked={qaSafetyConfirmed}
                     onChange={(e) => setQaSafetyConfirmed(e.target.checked)}
-                    className="w-5 h-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    className="w-6 h-6 rounded-lg border-2 border-site-300 text-safety-green focus:ring-safety-green"
                     disabled={isSubmitted}
                   />
-                  <span className="text-sm font-medium text-gray-700">
-                    QA/Safety confirmed for today
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-safety-green" />
+                    <span className="text-sm font-semibold text-site-700">QA/Safety confirmed</span>
+                  </div>
                 </label>
               </div>
 
-              {/* Evidence Section */}
+              {/* Evidence */}
               <div className="card space-y-3">
-                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Evidence
+                <div className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-site-400" />
+                  <h2 className="font-bold text-site-800">Evidence</h2>
                   {evidence.length > 0 && (
-                    <span className="badge bg-brand-100 text-brand-700 text-xs">{evidence.length}</span>
+                    <span className="badge bg-construction-100 text-construction-700">{evidence.length}</span>
                   )}
-                </h2>
+                </div>
                 <EvidenceList evidence={evidence as never[]} />
                 {!isSubmitted && report && (
                   <EvidenceUpload
@@ -424,26 +377,175 @@ export default function DailyReportPage() {
                   />
                 )}
                 {!isSubmitted && !report && (
-                  <p className="text-sm text-gray-400 italic">Save the report first to attach evidence</p>
+                  <p className="text-sm text-site-400 italic">Save report first to attach evidence</p>
                 )}
               </div>
 
-              {/* Annotations (submitted reports) */}
+              {/* Actions */}
+              {!isSubmitted && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={save}
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                    disabled={saving || !workSummary.trim()}
+                  >
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                  <button
+                    onClick={submit}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                    disabled={submitting || !workSummary.trim()}
+                  >
+                    <Send className="w-4 h-4" />
+                    {submitting ? 'Submitting...' : 'Submit'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============ FULL DETAILS TAB ============ */}
+      {activeTab === 'full' && (
+        <>
+          {reportLoading ? (
+            <LoadingSkeleton lines={6} />
+          ) : (
+            <div className="space-y-4">
+              {isSubmitted && (
+                <div className="bg-brand-50 border-2 border-brand-200 text-brand-800 px-4 py-3 rounded-2xl text-sm flex items-center gap-2 font-medium">
+                  <Lock className="w-5 h-5 flex-shrink-0 text-brand-600" />
+                  Immutable after submit. Corrections via annotations only.
+                </div>
+              )}
+
+              {/* Full form */}
+              <div className="card space-y-5">
+                <div>
+                  <label className="block text-sm font-bold text-site-700 mb-1.5">
+                    Work Summary <span className="text-safety-red">*</span>
+                  </label>
+                  <textarea
+                    className="textarea-field"
+                    rows={4}
+                    value={workSummary}
+                    onChange={(e) => setWorkSummary(e.target.value)}
+                    placeholder="Describe work completed today..."
+                    disabled={isSubmitted}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-site-700 mb-1.5">Personnel on Site</label>
+                  <textarea
+                    className="textarea-field"
+                    rows={2}
+                    value={personnelOnSite}
+                    onChange={(e) => setPersonnelOnSite(e.target.value)}
+                    placeholder="List personnel present..."
+                    disabled={isSubmitted}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-site-700 mb-1.5">Issues or Blockers</label>
+                  <textarea
+                    className="textarea-field"
+                    rows={2}
+                    value={issuesOrBlockers}
+                    onChange={(e) => setIssuesOrBlockers(e.target.value)}
+                    placeholder="Any issues encountered..."
+                    disabled={isSubmitted}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-site-700 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-safety-red" />
+                      Incidents
+                    </span>
+                  </label>
+                  <textarea
+                    className="textarea-field"
+                    rows={2}
+                    value={incidents}
+                    onChange={(e) => setIncidents(e.target.value)}
+                    placeholder="Any safety incidents..."
+                    disabled={isSubmitted}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-site-700 mb-1.5">Weather</label>
+                  <input
+                    className="input-field"
+                    value={weatherConditions}
+                    onChange={(e) => setWeatherConditions(e.target.value)}
+                    placeholder="e.g., Sunny, 28°C"
+                    disabled={isSubmitted}
+                  />
+                </div>
+
+                <label className="flex items-center gap-3 py-2 touch-target">
+                  <input
+                    type="checkbox"
+                    checked={qaSafetyConfirmed}
+                    onChange={(e) => setQaSafetyConfirmed(e.target.checked)}
+                    className="w-6 h-6 rounded-lg border-2 border-site-300 text-safety-green focus:ring-safety-green"
+                    disabled={isSubmitted}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-safety-green" />
+                    <span className="text-sm font-semibold text-site-700">QA/Safety confirmed for today</span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Evidence */}
+              <div className="card space-y-3">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-site-400" />
+                  <h2 className="font-bold text-site-800">Evidence</h2>
+                  {evidence.length > 0 && (
+                    <span className="badge bg-construction-100 text-construction-700">{evidence.length}</span>
+                  )}
+                </div>
+                <EvidenceList evidence={evidence as never[]} />
+                {!isSubmitted && report && (
+                  <EvidenceUpload
+                    siteId={site.id}
+                    contextType="daily_report"
+                    contextId={report.id}
+                    onUpload={(e) => {
+                      setEvidence((prev) => [...prev, e])
+                      toast('Evidence uploaded', 'success')
+                    }}
+                  />
+                )}
+                {!isSubmitted && !report && (
+                  <p className="text-sm text-site-400 italic">Save report first to attach evidence</p>
+                )}
+              </div>
+
+              {/* Annotations */}
               {isSubmitted && report?.annotations && report.annotations.length > 0 && (
                 <div className="card space-y-3">
-                  <h2 className="font-semibold text-gray-800">Annotations</h2>
+                  <h2 className="font-bold text-site-800">Annotations</h2>
                   {report.annotations.map((a) => (
-                    <div key={a.id} className="bg-gray-50 rounded-lg p-3">
+                    <div key={a.id} className="bg-site-50 rounded-xl p-3 border border-site-100">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium">{a.createdBy.displayName}</span>
+                        <span className="text-sm font-semibold text-site-700">{a.createdBy.displayName}</span>
                         <span className={`badge text-xs ${
                           a.annotationType === 'amendment_request' ? 'bg-amber-100 text-amber-700' :
                           a.annotationType === 'correction' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-600'
+                          'bg-site-100 text-site-600'
                         }`}>{a.annotationType.replace('_', ' ')}</span>
                       </div>
-                      <p className="text-sm text-gray-700">{a.content}</p>
-                      <p className="text-xs text-gray-400 mt-1">{new Date(a.createdAt).toLocaleString()}</p>
+                      <p className="text-sm text-site-700">{a.content}</p>
+                      <p className="text-xs text-site-400 mt-1">{new Date(a.createdAt).toLocaleString()}</p>
                     </div>
                   ))}
                 </div>
@@ -454,35 +556,34 @@ export default function DailyReportPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={save}
-                    className="btn-secondary flex-1"
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2"
                     disabled={saving || !workSummary.trim()}
                   >
+                    <Save className="w-4 h-4" />
                     {saving ? 'Saving...' : report ? 'Save Draft' : 'Create Draft'}
                   </button>
                   <button
                     onClick={submit}
-                    className="btn-primary flex-1"
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
                     disabled={submitting || !workSummary.trim()}
                   >
+                    <Send className="w-4 h-4" />
                     {submitting ? 'Submitting...' : 'Submit Report'}
                   </button>
                 </div>
               )}
-            </>
+            </div>
           )}
         </>
       )}
 
-      {/* ========== HISTORY TAB ========== */}
+      {/* ============ HISTORY TAB ============ */}
       {activeTab === 'history' && (
         <>
           {isViewingHistory && report ? (
-            /* ---- History Detail View (read-only for submitted) ---- */
             <div className="space-y-4">
-              <button onClick={backToHistory} className="text-sm text-brand-600 hover:underline flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+              <button onClick={backToHistory} className="text-sm text-brand-600 hover:underline flex items-center gap-1 font-semibold">
+                <ChevronLeft className="w-4 h-4" />
                 Back to history
               </button>
 
@@ -492,7 +593,7 @@ export default function DailyReportPage() {
                 <>
                   <div className="card space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="font-semibold text-gray-800">
+                      <h2 className="font-bold text-site-800">
                         {new Date(report.reportDate + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                       </h2>
                       <span className={`badge-${report.status}`}>{report.status}</span>
@@ -500,62 +601,56 @@ export default function DailyReportPage() {
 
                     <div className="space-y-3">
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Work Summary</p>
-                        <p className="text-sm text-gray-700 whitespace-pre-line">{report.workSummary}</p>
+                        <p className="section-header mb-1">Work Summary</p>
+                        <p className="text-sm text-site-700 whitespace-pre-line">{report.workSummary}</p>
                       </div>
-
                       {report.personnelOnSite && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Personnel</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-line">{report.personnelOnSite}</p>
+                          <p className="section-header mb-1">Personnel</p>
+                          <p className="text-sm text-site-700 whitespace-pre-line">{report.personnelOnSite}</p>
                         </div>
                       )}
-
                       {report.issuesOrBlockers && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Issues/Blockers</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-line">{report.issuesOrBlockers}</p>
+                          <p className="section-header mb-1">Issues/Blockers</p>
+                          <p className="text-sm text-site-700 whitespace-pre-line">{report.issuesOrBlockers}</p>
                         </div>
                       )}
-
                       {report.incidents && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Incidents</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-line">{report.incidents}</p>
+                          <p className="section-header mb-1">Incidents</p>
+                          <p className="text-sm text-site-700 whitespace-pre-line">{report.incidents}</p>
                         </div>
                       )}
-
                       {report.weatherConditions && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Weather</p>
-                          <p className="text-sm text-gray-700">{report.weatherConditions}</p>
+                          <p className="section-header mb-1">Weather</p>
+                          <p className="text-sm text-site-700">{report.weatherConditions}</p>
                         </div>
                       )}
 
                       <div className="flex items-center gap-2 pt-1">
                         {report.qaSafetyConfirmed ? (
-                          <span className="badge bg-green-100 text-green-700 text-xs flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
+                          <span className="badge bg-green-100 text-green-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
                             QA/Safety confirmed
                           </span>
                         ) : (
-                          <span className="badge bg-gray-100 text-gray-500 text-xs">QA/Safety not confirmed</span>
+                          <span className="badge bg-site-100 text-site-500">QA/Safety not confirmed</span>
                         )}
                       </div>
 
                       {report.submittedAt && (
-                        <p className="text-xs text-gray-400">
-                          Submitted {new Date(report.submittedAt).toLocaleString('en-ZA')}
-                        </p>
+                        <p className="text-xs text-site-400">Submitted {new Date(report.submittedAt).toLocaleString('en-ZA')}</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Evidence in detail view */}
                   <div className="card space-y-3">
-                    <h2 className="font-semibold text-gray-800">Evidence</h2>
+                    <div className="flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-site-400" />
+                      <h2 className="font-bold text-site-800">Evidence</h2>
+                    </div>
                     <EvidenceList evidence={(report.evidence || []) as never[]} />
                     {report.status !== 'submitted' && (
                       <EvidenceUpload
@@ -571,22 +666,21 @@ export default function DailyReportPage() {
                     )}
                   </div>
 
-                  {/* Annotations in detail view */}
                   {report.annotations && report.annotations.length > 0 && (
                     <div className="card space-y-3">
-                      <h2 className="font-semibold text-gray-800">Annotations</h2>
+                      <h2 className="font-bold text-site-800">Annotations</h2>
                       {report.annotations.map((a) => (
-                        <div key={a.id} className="bg-gray-50 rounded-lg p-3">
+                        <div key={a.id} className="bg-site-50 rounded-xl p-3 border border-site-100">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium">{a.createdBy.displayName}</span>
+                            <span className="text-sm font-semibold">{a.createdBy.displayName}</span>
                             <span className={`badge text-xs ${
                               a.annotationType === 'amendment_request' ? 'bg-amber-100 text-amber-700' :
                               a.annotationType === 'correction' ? 'bg-blue-100 text-blue-700' :
-                              'bg-gray-100 text-gray-600'
+                              'bg-site-100 text-site-600'
                             }`}>{a.annotationType.replace('_', ' ')}</span>
                           </div>
-                          <p className="text-sm text-gray-700">{a.content}</p>
-                          <p className="text-xs text-gray-400 mt-1">{new Date(a.createdAt).toLocaleString()}</p>
+                          <p className="text-sm text-site-700">{a.content}</p>
+                          <p className="text-xs text-site-400 mt-1">{new Date(a.createdAt).toLocaleString()}</p>
                         </div>
                       ))}
                     </div>
@@ -595,7 +689,6 @@ export default function DailyReportPage() {
               )}
             </div>
           ) : (
-            /* ---- History List View ---- */
             <>
               {listLoading ? (
                 <LoadingSkeleton lines={5} />
@@ -604,10 +697,7 @@ export default function DailyReportPage() {
                   icon="report"
                   title="No reports yet"
                   description="Your completed daily reports will appear here."
-                  action={{
-                    label: 'Create Today\'s Report',
-                    onClick: () => switchTab('today'),
-                  }}
+                  action={{ label: 'Create Quick Report', onClick: () => switchTab('quick') }}
                 />
               ) : (
                 <div className="space-y-2">
@@ -615,32 +705,30 @@ export default function DailyReportPage() {
                     <button
                       key={r.id}
                       onClick={() => loadReportDetail(r.id)}
-                      className="card w-full text-left hover:border-brand-300 transition-colors"
+                      className="card-interactive w-full text-left"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-800">
+                            <span className="text-sm font-semibold text-site-800">
                               {new Date(r.reportDate + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                             </span>
                             {r.reportDate === today && (
-                              <span className="badge bg-brand-100 text-brand-700 text-xs">Today</span>
+                              <span className="badge bg-construction-100 text-construction-700">Today</span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-500 truncate mt-0.5">
-                            {r.workSummary.length > 100 ? r.workSummary.slice(0, 100) + '...' : r.workSummary}
+                          <p className="text-sm text-site-500 truncate mt-0.5">
+                            {r.workSummary.length > 90 ? r.workSummary.slice(0, 90) + '...' : r.workSummary}
                           </p>
                           {r._count && r._count.annotations > 0 && (
-                            <span className="text-xs text-gray-400 mt-1 inline-block">
+                            <span className="text-xs text-site-400 mt-1 inline-block">
                               {r._count.annotations} annotation{r._count.annotations !== 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`badge-${r.status}`}>{r.status}</span>
-                          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                          <ChevronRight className="w-4 h-4 text-site-300" />
                         </div>
                       </div>
                     </button>
