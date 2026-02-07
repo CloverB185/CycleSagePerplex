@@ -1,0 +1,293 @@
+{
+  "$schema": "OnsitePro Test Mode Enforcement Design v1.0",
+  "generatedDate": "2026-02-07",
+  "prdVersion": "v1.0",
+  "phase": "Phase 0 — Foundation & Architecture",
+  "description": "Backend-enforced environment segregation design. Three modes: DEMO, TEST, LIVE. UI cannot determine mode — backend enforces all boundaries.",
+
+  "criticalRule": "UI cannot determine mode. Backend must enforce.",
+
+  "modes": {
+    "DEMO": {
+      "description": "Visual-only simulation. No writes to any data store.",
+      "writePermission": false,
+      "readPermission": "Simulated/mock data only",
+      "uiIndicator": "Prominent 'DEMO MODE' watermark visible on all screens",
+      "backendBehavior": "Refuses all write operations. Returns mock success responses for UI display only.",
+      "dataIsolation": "No interaction with real data (test or production)",
+      "useCases": [
+        "Product demonstrations",
+        "Sales presentations",
+        "Stakeholder previews"
+      ]
+    },
+    "TEST": {
+      "description": "Full functionality, isolated to test sites only. All queries filtered.",
+      "writePermission": "Only to sites where isTestSite=true",
+      "readPermission": "Only sites where isTestSite=true",
+      "uiIndicator": "'TEST MODE' banner visible. Test sites clearly labeled.",
+      "backendBehavior": "All queries include WHERE site.isTestSite=true. Writes validated against site.isTestSite flag.",
+      "dataIsolation": "Complete isolation from production data",
+      "useCases": [
+        "Development testing",
+        "QA validation",
+        "User training",
+        "Feature demonstration with real workflows"
+      ]
+    },
+    "LIVE": {
+      "description": "Production mode. All operations against real data. Zero tolerance for drift.",
+      "writePermission": "Only to sites where isTestSite=false (or null)",
+      "readPermission": "Only sites where isTestSite=false (or null)",
+      "uiIndicator": "None (normal operation — no visual noise)",
+      "backendBehavior": "All queries exclude test sites. Full audit logging. All operations auditable.",
+      "dataIsolation": "Never sees test site data",
+      "useCases": [
+        "Daily production operations",
+        "Real site management"
+      ]
+    }
+  },
+
+  "backendEnforcement": {
+
+    "validateSiteMode": {
+      "description": "Core validation function called by all write operations before execution.",
+      "signature": "validateSiteMode(siteId: UUID, expectedMode: 'test' | 'live') → { valid: boolean, error?: string }",
+      "logic": [
+        "1. Fetch site record by siteId",
+        "2. If site not found → return { valid: false, error: 'SITE_NOT_FOUND' }",
+        "3. If expectedMode='test' AND site.isTestSite=true → return { valid: true }",
+        "4. If expectedMode='live' AND (site.isTestSite=false OR site.isTestSite=null) → return { valid: true }",
+        "5. Otherwise → return { valid: false, error: 'SITE_MODE_MISMATCH' }"
+      ],
+      "calledBy": "Every backend function that writes data (createDailyReport, createSnag, uploadEvidence, etc.)",
+      "failureBehavior": "Return HTTP 403 with error code 'SITE_MODE_MISMATCH'. Log violation to AuditLog."
+    },
+
+    "queryFiltering": {
+      "description": "All read queries must filter by site mode to prevent cross-contamination.",
+      "rules": [
+        {
+          "context": "TEST mode session",
+          "filter": "WHERE site.isTestSite = true",
+          "applies": "All queries that return site-scoped data"
+        },
+        {
+          "context": "LIVE mode session",
+          "filter": "WHERE (site.isTestSite = false OR site.isTestSite IS NULL)",
+          "applies": "All queries that return site-scoped data"
+        },
+        {
+          "context": "DEMO mode session",
+          "filter": "N/A — no real data queried",
+          "applies": "All queries return mock data"
+        }
+      ]
+    },
+
+    "writeProtection": {
+      "description": "Write operations validated against site mode before execution.",
+      "protectedOperations": [
+        {
+          "operation": "createDailyReport",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "createSnag",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "uploadEvidence",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "submitChecklist",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "createTomorrowPlan",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "updateSnagStatus",
+          "validation": "validateSiteMode(siteId, currentSessionMode)",
+          "onFailure": "HTTP 403 SITE_MODE_MISMATCH"
+        },
+        {
+          "operation": "syncOfflineActions",
+          "validation": "Each action in batch validated individually",
+          "onFailure": "Individual action fails; batch continues for other valid actions"
+        }
+      ]
+    },
+
+    "demoModeProtection": {
+      "description": "DEMO mode has the strictest protection — zero writes allowed.",
+      "implementation": [
+        "All backend functions check session context for demo flag",
+        "If demo=true → return mock success response without executing",
+        "Mock responses match real response format for UI compatibility",
+        "No database operations occur",
+        "No evidence uploads occur",
+        "No audit log entries created (nothing happened)"
+      ]
+    }
+  },
+
+  "sessionModeDetection": {
+    "description": "How the system determines which mode a user session is operating in.",
+    "approach": {
+      "primary": "Session context includes mode flag set at authentication/app-launch",
+      "options": [
+        {
+          "option": "User explicitly selects mode at login",
+          "pros": "Clear intent",
+          "cons": "Extra step for foremen",
+          "recommended": false
+        },
+        {
+          "option": "Mode inferred from site selection",
+          "pros": "No extra step; site.isTestSite determines behavior automatically",
+          "cons": "User might not realize they're in test mode",
+          "recommended": true,
+          "mitigations": [
+            "Test sites clearly labeled in UI: '[TEST] Site Name'",
+            "Banner shown when viewing test site data",
+            "All reports/exports from test sites watermarked"
+          ]
+        },
+        {
+          "option": "Separate app instances for test/live",
+          "pros": "Complete isolation",
+          "cons": "Deployment complexity",
+          "recommended": false
+        }
+      ],
+      "selectedApproach": "Mode inferred from site selection. Backend enforces via site.isTestSite flag. No separate login or app instance needed."
+    }
+  },
+
+  "siteModeLockdown": {
+    "description": "Once a site has operational data, its isTestSite flag cannot be changed.",
+    "rules": [
+      "Site can be created as test (isTestSite=true) or live (isTestSite=false)",
+      "isTestSite can be changed ONLY if the site has zero: DailyReports, Snags, Evidence, ChecklistSubmissions, TomorrowPlans",
+      "Once any operational data exists, isTestSite is permanently locked",
+      "This prevents accidental promotion of test data to production or vice versa"
+    ],
+    "backendValidation": {
+      "function": "canChangeSiteMode(siteId) → boolean",
+      "logic": [
+        "1. Count DailyReports WHERE siteId = ?",
+        "2. Count Snags WHERE siteId = ?",
+        "3. Count Evidence WHERE siteId = ?",
+        "4. Count ChecklistSubmissions WHERE siteId = ?",
+        "5. Count TomorrowPlans WHERE siteId = ?",
+        "6. If all counts == 0 → return true",
+        "7. Else → return false"
+      ]
+    }
+  },
+
+  "violationLogging": {
+    "description": "All mode violation attempts are logged for security audit.",
+    "logFormat": {
+      "entityType": "ModeViolation",
+      "fields": {
+        "userId": "Who attempted the violation",
+        "siteId": "Which site was targeted",
+        "expectedMode": "What mode the operation expected",
+        "actualMode": "What mode the site is in",
+        "operation": "What operation was attempted",
+        "timestamp": "Server timestamp of the attempt"
+      }
+    },
+    "alerting": {
+      "phase1": "Log only (no real-time alerts)",
+      "phase2plus": "Consider admin notifications for repeated violations"
+    }
+  },
+
+  "testDataManagement": {
+    "description": "Guidelines for managing test site data.",
+    "rules": [
+      "Test sites should be clearly named (e.g., '[TEST] Sample Construction Site')",
+      "Test data can be created freely without affecting production",
+      "Test data can be bulk-deleted by admin (unlike production data)",
+      "Test data exports are always watermarked",
+      "Test data never appears in production reports or dashboards"
+    ],
+    "resetCapability": {
+      "description": "Admin can reset all data for a test site (for re-testing)",
+      "restriction": "Only available for sites where isTestSite=true",
+      "backendEnforced": true,
+      "auditLogged": true
+    }
+  },
+
+  "validationChecklist": {
+    "description": "Tests to verify mode enforcement is working correctly.",
+    "tests": [
+      {
+        "id": "TM-01",
+        "test": "Create daily report on TEST site in TEST mode",
+        "expected": "Success",
+        "validates": "Basic test mode write"
+      },
+      {
+        "id": "TM-02",
+        "test": "Create daily report on LIVE site in TEST mode",
+        "expected": "HTTP 403 SITE_MODE_MISMATCH",
+        "validates": "Cross-mode write prevention"
+      },
+      {
+        "id": "TM-03",
+        "test": "Create daily report on TEST site in LIVE mode",
+        "expected": "HTTP 403 SITE_MODE_MISMATCH",
+        "validates": "Cross-mode write prevention (reverse)"
+      },
+      {
+        "id": "TM-04",
+        "test": "Query sites in TEST mode",
+        "expected": "Only test sites returned",
+        "validates": "Query filtering"
+      },
+      {
+        "id": "TM-05",
+        "test": "Query sites in LIVE mode",
+        "expected": "Only live sites returned",
+        "validates": "Query filtering (reverse)"
+      },
+      {
+        "id": "TM-06",
+        "test": "Write operation in DEMO mode",
+        "expected": "Mock success, no database change",
+        "validates": "Demo mode protection"
+      },
+      {
+        "id": "TM-07",
+        "test": "Change isTestSite on site with existing reports",
+        "expected": "Rejection",
+        "validates": "Site mode lockdown"
+      },
+      {
+        "id": "TM-08",
+        "test": "Change isTestSite on site with zero data",
+        "expected": "Success",
+        "validates": "Site mode change when safe"
+      },
+      {
+        "id": "TM-09",
+        "test": "Violation attempt logged in AuditLog",
+        "expected": "AuditLog entry with violation details",
+        "validates": "Violation logging"
+      }
+    ]
+  }
+}

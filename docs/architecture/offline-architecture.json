@@ -1,0 +1,320 @@
+{
+  "$schema": "OnsitePro Offline Architecture Spec v1.0",
+  "generatedDate": "2026-02-07",
+  "prdVersion": "v1.0",
+  "phase": "Phase 0 — Foundation & Architecture",
+  "description": "Complete offline-first architecture specification. Covers storage, sync queue, idempotency, retry policy, conflict resolution, and user-facing sync status.",
+
+  "designPrinciples": [
+    "Offline-first: app must function fully without connectivity",
+    "Partial truth now beats perfect truth never",
+    "No silent failures: user always knows sync state",
+    "Idempotent writes: safe to retry any operation",
+    "localStorage prohibited for queues and blobs (IndexedDB only)",
+    "Manual sync always available as fallback"
+  ],
+
+  "storageArchitecture": {
+    "primaryStorage": {
+      "technology": "IndexedDB",
+      "library": "Native IndexedDB API (or Dexie.js wrapper if available in Base44)",
+      "usage": [
+        "Offline action queue (SyncAction records)",
+        "Cached entity data for offline viewing",
+        "Evidence file blobs pending upload",
+        "User session data"
+      ],
+      "stores": {
+        "syncQueue": {
+          "description": "Pending offline operations awaiting sync",
+          "keyPath": "syncActionId",
+          "indexes": ["status", "createdAt", "actionType"],
+          "schema": {
+            "syncActionId": "UUID v4 (client-generated)",
+            "actionType": "string (enum of operation types)",
+            "payload": "object (full operation data)",
+            "status": "string: pending | in_progress | completed | failed",
+            "retryCount": "number (default 0, max 3)",
+            "lastError": "string | null",
+            "createdAt": "ISO datetime",
+            "processedAt": "ISO datetime | null"
+          }
+        },
+        "evidenceBlobs": {
+          "description": "Binary file data for evidence pending upload",
+          "keyPath": "syncActionId",
+          "schema": {
+            "syncActionId": "UUID v4 (matches syncQueue entry)",
+            "blob": "Blob (file data)",
+            "fileName": "string",
+            "mimeType": "string",
+            "fileSizeBytes": "number",
+            "fileHash": "string (SHA-256)"
+          }
+        },
+        "cachedEntities": {
+          "description": "Local cache of server entities for offline viewing",
+          "keyPath": "cacheKey",
+          "indexes": ["entityType", "lastSyncedAt"],
+          "schema": {
+            "cacheKey": "string (entityType:entityId)",
+            "entityType": "string",
+            "entityId": "UUID",
+            "data": "object (full entity data)",
+            "lastSyncedAt": "ISO datetime"
+          }
+        }
+      }
+    },
+    "prohibitedStorage": {
+      "localStorage": {
+        "prohibited": true,
+        "reason": "5MB limit, synchronous API, no structured data support. Not suitable for queue or blob storage.",
+        "allowedUseOnly": "User preferences (theme, last selected site) — NOT operational data"
+      }
+    },
+    "optionalEnhancement": {
+      "serviceWorker": {
+        "purpose": "Cache static assets (HTML, CSS, JS) for fully offline app loading",
+        "priority": "Phase 2 enhancement",
+        "notRequiredForMVP": true
+      }
+    }
+  },
+
+  "syncEngine": {
+    "description": "Manages the offline queue, processes pending actions, handles retries and conflicts.",
+
+    "queueOperations": {
+      "enqueue": {
+        "description": "Add a new action to the offline queue",
+        "steps": [
+          "1. Generate UUID v4 as syncActionId",
+          "2. Create SyncAction record with status='pending'",
+          "3. Store in IndexedDB syncQueue store",
+          "4. If evidence upload: store blob in evidenceBlobs store",
+          "5. Trigger debounced sync (5-second delay)",
+          "6. Update UI: increment pending count"
+        ]
+      },
+      "dequeue": {
+        "description": "Process next pending action from queue",
+        "steps": [
+          "1. Query syncQueue for oldest record with status='pending'",
+          "2. Set status='in_progress'",
+          "3. Send to server via appropriate backend function",
+          "4. If success: set status='completed', set processedAt",
+          "5. If failure: increment retryCount, set lastError, set status='failed' if retryCount >= 3",
+          "6. Update UI: update pending/failed counts"
+        ]
+      }
+    },
+
+    "syncTriggers": {
+      "manual": {
+        "description": "User taps sync button",
+        "behavior": "Process all pending actions immediately",
+        "alwaysAvailable": true
+      },
+      "appOpen": {
+        "description": "App opens or returns to foreground",
+        "behavior": "Check connectivity, process pending if online",
+        "condition": "navigator.onLine === true"
+      },
+      "reconnect": {
+        "description": "Network connectivity restored",
+        "behavior": "Process pending after short delay (2 seconds)",
+        "detection": "window.addEventListener('online', handler)"
+      },
+      "afterQueueWrite": {
+        "description": "New action added to queue",
+        "behavior": "Debounced auto-sync (5-second delay)",
+        "rationale": "Allows batching of rapid sequential operations"
+      }
+    },
+
+    "processingOrder": {
+      "rule": "FIFO (First In, First Out) by createdAt timestamp",
+      "exceptions": [
+        "Evidence uploads process in parallel (up to 2 concurrent)",
+        "Data operations process sequentially (order matters for dependencies)"
+      ]
+    },
+
+    "batchProcessing": {
+      "defaultBatchSize": 10,
+      "description": "Process up to 10 actions per sync cycle",
+      "evidenceParallelism": 2,
+      "rationale": "Prevent overwhelming slow connections; maintain responsive UI"
+    }
+  },
+
+  "retryPolicy": {
+    "maxAutomaticRetries": 3,
+    "backoffStrategy": "exponential",
+    "backoffDelays": ["5s", "15s", "45s"],
+    "afterMaxRetries": {
+      "behavior": "Set status='failed', require manual retry",
+      "userNotification": "Show failed item with retry button"
+    },
+    "retryableErrors": [
+      "Network timeout",
+      "HTTP 5xx (server error)",
+      "HTTP 429 (rate limit)",
+      "Connection refused"
+    ],
+    "nonRetryableErrors": [
+      "HTTP 400 (bad request — data issue)",
+      "HTTP 403 (permission denied)",
+      "HTTP 409 (conflict / idempotency duplicate)",
+      "HTTP 422 (validation error)"
+    ],
+    "idempotencyOnRetry": {
+      "rule": "Server checks syncActionId before execution",
+      "behavior": "If syncActionId already processed → return success without re-executing",
+      "guarantees": [
+        "Same daily report submission sent 3x = creates only 1 report",
+        "Same evidence upload sent 3x = stores only 1 file",
+        "Same snag creation sent 3x = creates only 1 snag"
+      ]
+    }
+  },
+
+  "idempotencyDesign": {
+    "description": "Every state-changing operation from the client includes a client-generated syncActionId (UUID v4). The server tracks processed syncActionIds to prevent duplicate execution.",
+
+    "clientSide": {
+      "generation": "UUID v4 generated on the client when action is created",
+      "storage": "Stored in IndexedDB syncQueue with the action",
+      "transmission": "Included in every API request as part of the payload"
+    },
+
+    "serverSide": {
+      "table": "SyncAction (server-side table)",
+      "checkFlow": [
+        "1. Receive request with syncActionId",
+        "2. Query SyncAction table: SELECT WHERE syncActionId = ?",
+        "3. If found AND status='completed' → return previous result (skip execution)",
+        "4. If found AND status='in_progress' → return 409 Conflict (concurrent duplicate)",
+        "5. If not found → create SyncAction record with status='in_progress'",
+        "6. Execute the operation",
+        "7. Update SyncAction status to 'completed'",
+        "8. Return result"
+      ],
+      "transactionWrapping": "Steps 5-7 must be atomic (database transaction or equivalent)"
+    },
+
+    "protectedOperations": [
+      "createDailyReport",
+      "submitDailyReport",
+      "createTomorrowPlan",
+      "uploadEvidence",
+      "createSnag",
+      "updateSnagStatus",
+      "submitChecklist"
+    ]
+  },
+
+  "conflictResolution": {
+    "strategy": "Last-write-wins for mutable fields; reject for immutable fields",
+    "details": {
+      "immutableConflicts": {
+        "scenario": "Client attempts to modify immutable field",
+        "resolution": "Server rejects with HTTP 409, client discards conflicting action",
+        "example": "Client tries to edit submitted DailyReport → rejected"
+      },
+      "mutableConflicts": {
+        "scenario": "Two users update same mutable field (e.g., snag owner)",
+        "resolution": "Last write wins (server timestamp determines winner)",
+        "example": "PM A reassigns snag, PM B reassigns same snag → PM B's write wins if later"
+      },
+      "createConflicts": {
+        "scenario": "Duplicate create attempt (same syncActionId)",
+        "resolution": "Idempotency check → return existing record",
+        "example": "Foreman submits report offline, retries on reconnect → single report created"
+      }
+    }
+  },
+
+  "userFacingSyncStatus": {
+    "statusIndicator": {
+      "location": "Persistent header/toolbar element",
+      "states": {
+        "online": { "label": "Online", "visual": "Green dot", "description": "Connected and synced" },
+        "offline": { "label": "Offline", "visual": "Grey dot", "description": "No connectivity, working locally" },
+        "syncing": { "label": "Syncing...", "visual": "Animated blue dot", "description": "Processing pending actions" },
+        "pendingSync": { "label": "X items pending", "visual": "Orange dot with count", "description": "Has unsynced items" },
+        "syncFailed": { "label": "X items failed", "visual": "Red dot with count", "description": "Has failed items requiring attention" }
+      }
+    },
+    "pendingCount": {
+      "visible": true,
+      "format": "'{count} items waiting to sync'",
+      "location": "Below status indicator or in sync panel"
+    },
+    "failedItems": {
+      "visible": true,
+      "actions": ["View details", "Retry individual", "Retry all failed"],
+      "errorDisplay": "Human-readable error message per failed item"
+    },
+    "manualSyncButton": {
+      "alwaysVisible": true,
+      "label": "Sync Now",
+      "behavior": "Processes all pending items immediately"
+    }
+  },
+
+  "connectivityDetection": {
+    "primary": "navigator.onLine property",
+    "events": ["online", "offline"],
+    "healthCheck": {
+      "description": "Periodic lightweight ping to verify actual connectivity (navigator.onLine can be unreliable)",
+      "interval": "30 seconds when app is active",
+      "endpoint": "Simple health check endpoint on server",
+      "fallback": "If health check fails despite navigator.onLine=true, treat as offline"
+    }
+  },
+
+  "evidenceUploadHandling": {
+    "description": "Evidence uploads (photos, files) follow a separate queue path due to larger payload sizes.",
+    "flow": [
+      "1. Foreman captures photo/file",
+      "2. Generate syncActionId",
+      "3. Store blob in IndexedDB evidenceBlobs store",
+      "4. Create sync queue entry with actionType='uploadEvidence'",
+      "5. On sync: upload blob via base44.integrations.Core.UploadFile",
+      "6. On upload success: create Evidence entity with returned fileUrl",
+      "7. Clean up blob from IndexedDB",
+      "8. Mark sync action as completed"
+    ],
+    "clientSideProcessing": {
+      "compression": "Compress to JPEG quality 80-85% if original exceeds 2MB",
+      "minimumResolution": "Preserve at least 800px on shortest dimension",
+      "hashGeneration": "SHA-256 hash of file content before upload",
+      "exifPreservation": "Extract and store EXIF data before any compression"
+    },
+    "uploadRetry": {
+      "separateFromDataSync": true,
+      "maxRetries": 3,
+      "backoff": ["10s", "30s", "90s"],
+      "rationale": "Larger payloads need longer backoff to avoid network congestion"
+    }
+  },
+
+  "dataConsistency": {
+    "localCacheStrategy": {
+      "description": "Local cache is a read-through cache, not source of truth",
+      "rules": [
+        "Server is always source of truth",
+        "Local cache used for offline viewing only",
+        "Cache invalidated on successful sync",
+        "Stale cache clearly indicated in UI (last synced timestamp)"
+      ]
+    },
+    "optimisticUI": {
+      "description": "Show locally created items immediately in the UI",
+      "behavior": "Items created offline appear immediately with 'pending sync' indicator",
+      "rollback": "If server rejects item, mark as failed and show error to user"
+    }
+  }
+}

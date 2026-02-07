@@ -1,0 +1,492 @@
+{
+  "$schema": "OnsitePro Entity Schema Design v1.0",
+  "generatedDate": "2026-02-07",
+  "prdVersion": "v1.0",
+  "phase": "Phase 0 — Foundation & Architecture",
+  "description": "Complete entity schema definitions for OnsitePro, including field types, relationships, immutability rules, and validation constraints.",
+
+  "entities": {
+
+    "Organization": {
+      "description": "Top-level tenant. All data is scoped to an organization.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "name": { "type": "string", "required": true, "maxLength": 200 },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "createdAt"]
+      },
+      "indexes": ["name"]
+    },
+
+    "User": {
+      "description": "All system users. Role determines permissions. Scoped to Organization.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "organizationId": { "type": "uuid", "required": true, "references": "Organization.id", "immutable": true },
+        "email": { "type": "string", "required": true, "unique": true, "maxLength": 254 },
+        "displayName": { "type": "string", "required": true, "maxLength": 100 },
+        "role": {
+          "type": "enum",
+          "required": true,
+          "values": ["foreman", "pm", "admin"],
+          "description": "foreman=frontline capture, pm=supervisor/review, admin=full management"
+        },
+        "isActive": { "type": "boolean", "required": true, "default": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true },
+        "lastLoginAt": { "type": "datetime", "nullable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "organizationId", "createdAt"]
+      },
+      "indexes": ["organizationId", "email", "role"]
+    },
+
+    "Site": {
+      "description": "A physical construction site. All operational data is scoped to a site. Contains isTestSite flag for environment segregation.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "organizationId": { "type": "uuid", "required": true, "references": "Organization.id", "immutable": true },
+        "name": { "type": "string", "required": true, "maxLength": 200 },
+        "address": { "type": "string", "nullable": true, "maxLength": 500 },
+        "isTestSite": {
+          "type": "boolean",
+          "required": true,
+          "default": false,
+          "description": "Backend-enforced flag for test/live mode segregation. Cannot be changed after site has operational data."
+        },
+        "isActive": { "type": "boolean", "required": true, "default": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "organizationId", "createdById", "createdAt"],
+        "conditionalLock": {
+          "isTestSite": "Cannot change after site has any DailyReport, Snag, or Evidence records"
+        }
+      },
+      "indexes": ["organizationId", "isTestSite", "isActive"]
+    },
+
+    "SiteAssignment": {
+      "description": "Maps users to sites they can operate on. Enforces site-level access control.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id" },
+        "userId": { "type": "uuid", "required": true, "references": "User.id" },
+        "assignedById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "isActive": { "type": "boolean", "required": true, "default": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "siteId", "userId", "assignedById", "createdAt"]
+      },
+      "uniqueConstraints": [["siteId", "userId"]],
+      "indexes": ["siteId", "userId"]
+    },
+
+    "DailyReport": {
+      "description": "Core immutable record of what happened on site on a given day. Created by foremen. Cannot be edited after submission.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "reportDate": { "type": "date", "required": true, "immutable": true, "description": "The date this report covers (not creation time)" },
+        "status": {
+          "type": "enum",
+          "required": true,
+          "values": ["draft", "submitted"],
+          "default": "draft",
+          "description": "Once submitted, entire record becomes immutable"
+        },
+        "workSummary": { "type": "text", "required": true, "maxLength": 5000, "immutableAfterSubmit": true },
+        "personnelOnSite": { "type": "text", "nullable": true, "maxLength": 2000, "immutableAfterSubmit": true, "description": "Free-text list of who was on site" },
+        "issuesOrBlockers": { "type": "text", "nullable": true, "maxLength": 3000, "immutableAfterSubmit": true },
+        "incidents": { "type": "text", "nullable": true, "maxLength": 3000, "immutableAfterSubmit": true },
+        "weatherConditions": { "type": "string", "nullable": true, "maxLength": 200, "immutableAfterSubmit": true },
+        "qaSafetyConfirmed": { "type": "boolean", "required": true, "default": false, "immutableAfterSubmit": true },
+        "submittedAt": { "type": "datetime", "nullable": true, "immutable": true, "description": "Set once on submission, never changes" },
+        "syncActionId": { "type": "uuid", "nullable": true, "unique": true, "description": "Idempotency key from offline sync" },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "siteId", "createdById", "reportDate", "createdAt"],
+        "afterSubmit": "ALL fields become immutable. No edits. Corrections via DailyReportAnnotation only.",
+        "triggerField": "status",
+        "triggerValue": "submitted"
+      },
+      "uniqueConstraints": [
+        ["siteId", "createdById", "reportDate"],
+        ["syncActionId"]
+      ],
+      "indexes": ["siteId", "createdById", "reportDate", "status"]
+    },
+
+    "DailyReportAnnotation": {
+      "description": "Additive-only corrections or comments on submitted daily reports. Preserves immutability of original record.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "dailyReportId": { "type": "uuid", "required": true, "references": "DailyReport.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "content": { "type": "text", "required": true, "maxLength": 3000, "immutable": true },
+        "annotationType": {
+          "type": "enum",
+          "required": true,
+          "values": ["correction", "comment", "amendment_request"],
+          "immutable": true
+        },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": "ALL fields immutable. Annotations cannot be edited or deleted."
+      },
+      "indexes": ["dailyReportId", "createdById"]
+    },
+
+    "TomorrowPlan": {
+      "description": "Lightweight forward planning. What the foreman intends to do tomorrow. Editable until the plan date arrives.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "planDate": { "type": "date", "required": true, "immutable": true, "description": "The date this plan is for (tomorrow)" },
+        "tasks": { "type": "text", "required": true, "maxLength": 5000, "description": "Free-text list of planned tasks" },
+        "requiredResources": { "type": "text", "nullable": true, "maxLength": 2000 },
+        "knownRisks": { "type": "text", "nullable": true, "maxLength": 2000 },
+        "syncActionId": { "type": "uuid", "nullable": true, "unique": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "siteId", "createdById", "planDate", "createdAt"],
+        "conditionalLock": {
+          "allMutableFields": "Lock when current date >= planDate (plan date has arrived, no retroactive changes)"
+        }
+      },
+      "uniqueConstraints": [
+        ["siteId", "createdById", "planDate"],
+        ["syncActionId"]
+      ],
+      "indexes": ["siteId", "createdById", "planDate"]
+    },
+
+    "Evidence": {
+      "description": "First-class evidence record. Photos, notes, attachments. Immutable after creation. Linked to site and optionally to specific context (report, snag, task).",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "evidenceType": {
+          "type": "enum",
+          "required": true,
+          "values": ["photo", "note", "attachment"],
+          "immutable": true
+        },
+        "contextType": {
+          "type": "enum",
+          "nullable": true,
+          "values": ["daily_report", "snag", "checklist", "general"],
+          "immutable": true,
+          "description": "What this evidence is linked to"
+        },
+        "contextId": {
+          "type": "uuid",
+          "nullable": true,
+          "immutable": true,
+          "description": "ID of the linked entity (DailyReport.id, Snag.id, etc.)"
+        },
+        "fileUrl": {
+          "type": "string",
+          "nullable": true,
+          "immutable": true,
+          "description": "Permanent storage URL returned by base44.integrations.Core.UploadFile"
+        },
+        "fileName": { "type": "string", "nullable": true, "maxLength": 255, "immutable": true },
+        "fileSizeBytes": { "type": "integer", "nullable": true, "immutable": true },
+        "mimeType": { "type": "string", "nullable": true, "maxLength": 100, "immutable": true },
+        "fileHash": {
+          "type": "string",
+          "nullable": true,
+          "immutable": true,
+          "description": "SHA-256 hash of file content for integrity verification"
+        },
+        "description": { "type": "text", "nullable": true, "maxLength": 2000, "immutable": true },
+        "deviceTimestamp": {
+          "type": "datetime",
+          "required": true,
+          "immutable": true,
+          "description": "Timestamp from the capturing device"
+        },
+        "serverTimestamp": {
+          "type": "datetime",
+          "generated": true,
+          "immutable": true,
+          "description": "Timestamp when server received the evidence"
+        },
+        "gpsLatitude": { "type": "decimal", "nullable": true, "immutable": true },
+        "gpsLongitude": { "type": "decimal", "nullable": true, "immutable": true },
+        "gpsAccuracyMeters": { "type": "decimal", "nullable": true, "immutable": true },
+        "exifData": { "type": "json", "nullable": true, "immutable": true, "description": "Preserved EXIF metadata from photo" },
+        "imageWidthPx": { "type": "integer", "nullable": true, "immutable": true },
+        "imageHeightPx": { "type": "integer", "nullable": true, "immutable": true },
+        "isArchived": {
+          "type": "boolean",
+          "required": true,
+          "default": false,
+          "description": "Soft-delete flag. Evidence is never physically deleted."
+        },
+        "syncActionId": { "type": "uuid", "nullable": true, "unique": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": "ALL fields immutable EXCEPT isArchived. Evidence cannot be modified or deleted.",
+        "deletionPolicy": "Archive only. No physical deletion by any role."
+      },
+      "validationRules": {
+        "minimumResolution": "Shortest dimension >= 800px for photos",
+        "gpsPolicy": "Optional. Never block submission for missing GPS.",
+        "fileHashPolicy": "SHA-256 generated on upload. Used for tamper detection."
+      },
+      "indexes": ["siteId", "createdById", "contextType", "contextId", "evidenceType", "deviceTimestamp"]
+    },
+
+    "Snag": {
+      "description": "Issue/defect/task requiring resolution. Created by foremen. Immutable core data after creation, but status and resolution evidence can be updated.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "title": { "type": "string", "required": true, "maxLength": 300, "immutable": true },
+        "description": { "type": "text", "required": true, "maxLength": 5000, "immutable": true },
+        "category": {
+          "type": "enum",
+          "required": true,
+          "values": ["safety", "quality", "rework", "other"],
+          "immutable": true
+        },
+        "ownerId": {
+          "type": "uuid",
+          "required": true,
+          "references": "User.id",
+          "description": "The user responsible for resolving this snag. Can be reassigned by PM."
+        },
+        "status": {
+          "type": "enum",
+          "required": true,
+          "values": ["open", "in_progress", "closed"],
+          "default": "open",
+          "description": "Status progression: open -> in_progress -> closed. Closure requires resolution evidence."
+        },
+        "closedAt": { "type": "datetime", "nullable": true, "description": "Set when status changes to closed" },
+        "closedById": { "type": "uuid", "nullable": true, "references": "User.id" },
+        "syncActionId": { "type": "uuid", "nullable": true, "unique": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "siteId", "createdById", "title", "description", "category", "createdAt"],
+        "mutableFields": ["ownerId", "status", "closedAt", "closedById", "updatedAt"],
+        "closureRequirement": "Status change to 'closed' requires at least one Evidence record with contextType='snag' and contextId=this.id"
+      },
+      "statusTransitions": {
+        "open": ["in_progress"],
+        "in_progress": ["open", "closed"],
+        "closed": []
+      },
+      "indexes": ["siteId", "createdById", "ownerId", "status", "category"]
+    },
+
+    "SnagComment": {
+      "description": "Comments on snags. Additive only. Used by PMs to request amendments and by foremen to provide updates.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "snagId": { "type": "uuid", "required": true, "references": "Snag.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "content": { "type": "text", "required": true, "maxLength": 3000, "immutable": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": "ALL fields immutable. Comments cannot be edited or deleted."
+      },
+      "indexes": ["snagId", "createdById"]
+    },
+
+    "ChecklistTemplate": {
+      "description": "Reusable QA/Safety checklist templates created by PMs/Admins.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "organizationId": { "type": "uuid", "required": true, "references": "Organization.id", "immutable": true },
+        "name": { "type": "string", "required": true, "maxLength": 200 },
+        "category": {
+          "type": "enum",
+          "required": true,
+          "values": ["safety", "quality", "compliance", "general"]
+        },
+        "isBlocking": {
+          "type": "boolean",
+          "required": true,
+          "default": false,
+          "description": "If true, checklist must be completed before associated work can proceed. Only for safety/compliance-critical items."
+        },
+        "items": {
+          "type": "json",
+          "required": true,
+          "description": "Array of checklist items: [{id, label, isRequired, requiresEvidence}]"
+        },
+        "isActive": { "type": "boolean", "required": true, "default": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "updatedAt": { "type": "datetime", "generated": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "organizationId", "createdById", "createdAt"]
+      },
+      "indexes": ["organizationId", "category", "isActive"]
+    },
+
+    "ChecklistSubmission": {
+      "description": "A completed checklist instance. Immutable after submission. Links to a specific site and optionally a daily report.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "templateId": { "type": "uuid", "required": true, "references": "ChecklistTemplate.id", "immutable": true },
+        "siteId": { "type": "uuid", "required": true, "references": "Site.id", "immutable": true },
+        "createdById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "dailyReportId": { "type": "uuid", "nullable": true, "references": "DailyReport.id", "immutable": true },
+        "responses": {
+          "type": "json",
+          "required": true,
+          "immutable": true,
+          "description": "Array of responses: [{itemId, checked, note, evidenceId}]"
+        },
+        "allItemsPassed": { "type": "boolean", "required": true, "immutable": true },
+        "submittedAt": { "type": "datetime", "required": true, "immutable": true },
+        "syncActionId": { "type": "uuid", "nullable": true, "unique": true },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": "ALL fields immutable. Checklist submissions cannot be edited."
+      },
+      "indexes": ["templateId", "siteId", "createdById", "dailyReportId"]
+    },
+
+    "SyncAction": {
+      "description": "Tracks all pending offline operations for idempotent sync. Each action has a unique syncActionId used as idempotency key.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "syncActionId": {
+          "type": "uuid",
+          "required": true,
+          "unique": true,
+          "description": "Client-generated UUID v4. Idempotency key. Backend checks this before executing."
+        },
+        "userId": { "type": "uuid", "required": true, "references": "User.id" },
+        "actionType": {
+          "type": "enum",
+          "required": true,
+          "values": [
+            "createDailyReport",
+            "submitDailyReport",
+            "createTomorrowPlan",
+            "updateTomorrowPlan",
+            "uploadEvidence",
+            "createSnag",
+            "updateSnagStatus",
+            "submitChecklist"
+          ]
+        },
+        "payload": { "type": "json", "required": true, "description": "Full JSON payload for the operation" },
+        "status": {
+          "type": "enum",
+          "required": true,
+          "values": ["pending", "in_progress", "completed", "failed"],
+          "default": "pending"
+        },
+        "retryCount": { "type": "integer", "required": true, "default": 0 },
+        "lastError": { "type": "text", "nullable": true, "maxLength": 2000 },
+        "createdAt": { "type": "datetime", "generated": true, "immutable": true },
+        "processedAt": { "type": "datetime", "nullable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": ["id", "syncActionId", "userId", "actionType", "payload", "createdAt"]
+      },
+      "indexes": ["syncActionId", "userId", "status", "actionType"]
+    },
+
+    "AuditLog": {
+      "description": "Immutable audit trail for all state changes. Every mutation in the system is logged here.",
+      "fields": {
+        "id": { "type": "uuid", "primaryKey": true, "generated": true },
+        "entityType": { "type": "string", "required": true, "maxLength": 50, "immutable": true },
+        "entityId": { "type": "uuid", "required": true, "immutable": true },
+        "action": {
+          "type": "enum",
+          "required": true,
+          "values": ["create", "update", "archive", "submit", "status_change"],
+          "immutable": true
+        },
+        "performedById": { "type": "uuid", "required": true, "references": "User.id", "immutable": true },
+        "changesBefore": { "type": "json", "nullable": true, "immutable": true },
+        "changesAfter": { "type": "json", "nullable": true, "immutable": true },
+        "comment": { "type": "text", "nullable": true, "maxLength": 1000, "immutable": true },
+        "serverTimestamp": { "type": "datetime", "generated": true, "immutable": true }
+      },
+      "immutabilityRules": {
+        "afterCreate": "ALL fields immutable. Audit logs can never be modified or deleted."
+      },
+      "indexes": ["entityType", "entityId", "performedById", "action", "serverTimestamp"]
+    }
+  },
+
+  "relationshipMap": {
+    "Organization -> User": "1:N (organizationId)",
+    "Organization -> Site": "1:N (organizationId)",
+    "Organization -> ChecklistTemplate": "1:N (organizationId)",
+    "Site -> SiteAssignment": "1:N (siteId)",
+    "User -> SiteAssignment": "1:N (userId)",
+    "Site -> DailyReport": "1:N (siteId)",
+    "User -> DailyReport": "1:N (createdById)",
+    "DailyReport -> DailyReportAnnotation": "1:N (dailyReportId)",
+    "Site -> TomorrowPlan": "1:N (siteId)",
+    "Site -> Evidence": "1:N (siteId)",
+    "User -> Evidence": "1:N (createdById)",
+    "Site -> Snag": "1:N (siteId)",
+    "User -> Snag (creator)": "1:N (createdById)",
+    "User -> Snag (owner)": "1:N (ownerId)",
+    "Snag -> SnagComment": "1:N (snagId)",
+    "ChecklistTemplate -> ChecklistSubmission": "1:N (templateId)",
+    "Site -> ChecklistSubmission": "1:N (siteId)",
+    "DailyReport -> ChecklistSubmission": "1:N (dailyReportId)",
+    "User -> SyncAction": "1:N (userId)",
+    "* -> AuditLog": "Any entity change creates audit log entry"
+  },
+
+  "immutabilitySummary": {
+    "fullyImmutableAfterCreate": [
+      "DailyReportAnnotation",
+      "SnagComment",
+      "ChecklistSubmission",
+      "AuditLog"
+    ],
+    "immutableAfterSubmit": [
+      "DailyReport (all fields locked on submit)"
+    ],
+    "partiallyMutable": [
+      "TomorrowPlan (mutable until planDate arrives)",
+      "Snag (status, ownerId, closure fields mutable; core data immutable)",
+      "Evidence (only isArchived mutable)",
+      "Site (isTestSite locked after operational data exists)",
+      "ChecklistTemplate (name, items, isActive mutable; identity immutable)"
+    ],
+    "fullyMutable": [
+      "Organization (name, updatedAt)",
+      "User (displayName, role, isActive, updatedAt)",
+      "SiteAssignment (isActive)"
+    ]
+  }
+}

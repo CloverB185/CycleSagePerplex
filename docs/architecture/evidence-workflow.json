@@ -1,0 +1,306 @@
+{
+  "$schema": "OnsitePro Evidence Workflow Design v1.0",
+  "generatedDate": "2026-02-07",
+  "prdVersion": "v1.0",
+  "phase": "Phase 0 — Foundation & Architecture",
+  "description": "Complete evidence capture, storage, linking, and validation workflow. Evidence is first-class data in OnsitePro with legal-grade integrity requirements.",
+
+  "evidencePrinciple": "If it cannot reasonably prove the claim, it is not evidence.",
+
+  "evidenceTypes": {
+    "photo": {
+      "description": "Primary evidence type. Camera capture or gallery selection.",
+      "mimeTypes": ["image/jpeg", "image/png", "image/webp"],
+      "priority": "Highest — most common evidence on construction sites"
+    },
+    "note": {
+      "description": "Text-based evidence. Written observations or descriptions.",
+      "maxLength": 2000,
+      "priority": "High — supplements photo evidence"
+    },
+    "attachment": {
+      "description": "Other file types (PDFs, documents). Optional.",
+      "mimeTypes": ["application/pdf", "image/jpeg", "image/png"],
+      "maxSizeMB": 10,
+      "priority": "Low — future consideration for Phase 2+"
+    }
+  },
+
+  "captureWorkflow": {
+    "description": "End-to-end flow from user action to stored evidence.",
+
+    "step1_initiate": {
+      "trigger": "User taps 'Add Evidence' / camera icon in context (daily report, snag, etc.)",
+      "options": ["Take Photo (camera)", "Choose from Gallery", "Add Note"],
+      "uxConstraint": "Max 1 tap to reach capture. No navigation required."
+    },
+
+    "step2_capture": {
+      "photo": {
+        "source": "Device camera (preferred) or photo gallery",
+        "autoCapture": {
+          "deviceTimestamp": "Captured at moment of photo creation",
+          "gpsCoordinates": "Captured if available (never block on missing GPS)",
+          "exifData": "Extracted and preserved from original file"
+        },
+        "userInput": {
+          "description": "Optional text description of what the photo shows",
+          "required": false,
+          "maxLength": 2000
+        }
+      },
+      "note": {
+        "userInput": {
+          "content": "Required text content",
+          "required": true,
+          "maxLength": 2000
+        },
+        "autoCapture": {
+          "deviceTimestamp": "Captured at moment of note creation"
+        }
+      }
+    },
+
+    "step3_clientProcessing": {
+      "description": "Processing that happens on the device before queuing for upload.",
+      "operations": [
+        {
+          "name": "EXIF extraction",
+          "description": "Extract EXIF metadata from photo and store separately",
+          "fields": ["timestamp", "gps", "camera model", "orientation"],
+          "timing": "Before any compression"
+        },
+        {
+          "name": "Resolution validation",
+          "description": "Check that shortest dimension >= 800px",
+          "onFail": "Warn user: 'Photo may be too low quality for evidence.' Allow submission anyway.",
+          "neverBlock": true
+        },
+        {
+          "name": "Compression",
+          "description": "Compress if file exceeds 2MB",
+          "target": "JPEG quality 80-85%",
+          "constraint": "Must preserve shortest dimension >= 800px",
+          "skipIf": "File already under 2MB"
+        },
+        {
+          "name": "Hash generation",
+          "description": "Generate SHA-256 hash of the (possibly compressed) file content",
+          "purpose": "Tamper detection and deduplication",
+          "algorithm": "SHA-256",
+          "inputIs": "Final file bytes after compression (if any)"
+        },
+        {
+          "name": "Dimension capture",
+          "description": "Record image width and height in pixels",
+          "purpose": "Quality validation and display optimization"
+        }
+      ]
+    },
+
+    "step4_queue": {
+      "description": "Add evidence to offline sync queue.",
+      "actions": [
+        "Generate syncActionId (UUID v4)",
+        "Store file blob in IndexedDB evidenceBlobs store",
+        "Create sync queue entry with all metadata",
+        "Show confirmation to user: 'Evidence saved. Will upload when online.'",
+        "Update UI: evidence appears in context with 'pending upload' indicator"
+      ],
+      "queuePayload": {
+        "syncActionId": "UUID v4",
+        "actionType": "uploadEvidence",
+        "siteId": "UUID (from current context)",
+        "contextType": "daily_report | snag | checklist | general",
+        "contextId": "UUID of linked entity (or null for general)",
+        "evidenceType": "photo | note | attachment",
+        "description": "string | null",
+        "deviceTimestamp": "ISO datetime from device",
+        "gpsLatitude": "decimal | null",
+        "gpsLongitude": "decimal | null",
+        "gpsAccuracyMeters": "decimal | null",
+        "exifData": "JSON | null",
+        "imageWidthPx": "integer | null",
+        "imageHeightPx": "integer | null",
+        "fileName": "string",
+        "mimeType": "string",
+        "fileSizeBytes": "integer",
+        "fileHash": "SHA-256 string"
+      }
+    },
+
+    "step5_upload": {
+      "description": "Upload file to server when online.",
+      "steps": [
+        "1. Retrieve blob from IndexedDB evidenceBlobs store",
+        "2. Upload via base44.integrations.Core.UploadFile",
+        "3. Receive permanent fileUrl from upload response",
+        "4. Call createEvidence backend function with fileUrl + all metadata",
+        "5. Server validates: syncActionId not already processed (idempotency)",
+        "6. Server creates Evidence record with serverTimestamp",
+        "7. Server generates AuditLog entry",
+        "8. Client receives Evidence.id and confirmation",
+        "9. Clean up blob from IndexedDB",
+        "10. Mark sync action as completed",
+        "11. Update UI: remove 'pending upload' indicator"
+      ]
+    },
+
+    "step6_serverValidation": {
+      "description": "Server-side validation on evidence creation.",
+      "checks": [
+        {
+          "name": "Idempotency check",
+          "rule": "Reject if syncActionId already processed",
+          "response": "Return existing Evidence record (HTTP 200, not error)"
+        },
+        {
+          "name": "Site mode validation",
+          "rule": "Call validateSiteMode(siteId, expectedMode)",
+          "response": "Reject if site mode mismatch (HTTP 403)"
+        },
+        {
+          "name": "Permission check",
+          "rule": "User must be foreman assigned to siteId",
+          "response": "Reject if unauthorized (HTTP 403)"
+        },
+        {
+          "name": "Context validation",
+          "rule": "If contextType+contextId provided, verify linked entity exists",
+          "response": "Reject if context invalid (HTTP 400)"
+        },
+        {
+          "name": "File integrity",
+          "rule": "Store fileHash for future tamper detection",
+          "note": "Server does not re-hash (trusts upload pipeline), but stores hash for audit"
+        }
+      ]
+    }
+  },
+
+  "evidenceLinking": {
+    "description": "Evidence is linked to operational context via contextType and contextId.",
+    "linkingRules": {
+      "dailyReport": {
+        "contextType": "daily_report",
+        "contextId": "DailyReport.id",
+        "when": "Evidence captured during daily report creation flow",
+        "requirement": "At least 1 evidence item recommended for daily report submission (warn, don't block)"
+      },
+      "snag": {
+        "contextType": "snag",
+        "contextId": "Snag.id",
+        "whenCreation": "Evidence captured during snag creation (documents the issue)",
+        "whenClosure": "Evidence captured during snag closure (documents the resolution)",
+        "requirement": "Evidence REQUIRED for snag closure. Cannot close snag without resolution evidence."
+      },
+      "checklist": {
+        "contextType": "checklist",
+        "contextId": "ChecklistSubmission.id",
+        "when": "Checklist item has requiresEvidence=true",
+        "requirement": "Evidence REQUIRED for items marked requiresEvidence"
+      },
+      "general": {
+        "contextType": "general",
+        "contextId": null,
+        "when": "Evidence captured outside specific workflow (general site evidence)",
+        "requirement": "No linking required"
+      }
+    },
+    "evidenceGating": {
+      "description": "Certain operations require evidence before they can complete.",
+      "gatingRules": [
+        {
+          "operation": "Submit Daily Report",
+          "gate": "Warn if no evidence attached. Allow submission with explicit confirmation.",
+          "blocking": false,
+          "uxMessage": "No evidence attached. Submit anyway?"
+        },
+        {
+          "operation": "Close Snag",
+          "gate": "BLOCK if no evidence with contextType='snag' and contextId=snag.id exists",
+          "blocking": true,
+          "uxMessage": "Resolution evidence required to close this snag."
+        },
+        {
+          "operation": "Submit Checklist (with evidence items)",
+          "gate": "BLOCK if checklist items with requiresEvidence=true have no evidence",
+          "blocking": true,
+          "uxMessage": "Evidence required for marked items."
+        }
+      ]
+    }
+  },
+
+  "evidenceIntegrity": {
+    "description": "Rules ensuring evidence maintains legal-grade integrity.",
+    "rules": {
+      "immutability": {
+        "rule": "Evidence records are fully immutable after creation (except isArchived flag)",
+        "enforcement": "Backend rejects all update operations on Evidence records",
+        "noEdits": "File content, metadata, timestamps, and links cannot be modified"
+      },
+      "noDeletion": {
+        "rule": "Evidence cannot be deleted by any user role",
+        "archive": "Admin can set isArchived=true with documented cause (logged in AuditLog)",
+        "physicalDeletion": "Never. Even archived evidence remains in storage."
+      },
+      "timestampIntegrity": {
+        "deviceTimestamp": "Captured on device at moment of creation",
+        "serverTimestamp": "Generated by server at moment of receipt",
+        "clockDrift": "Server logs both timestamps. Reconciliation is informational only — both timestamps are preserved.",
+        "neverOverwritten": "Neither timestamp can be modified after creation"
+      },
+      "fileIntegrity": {
+        "hashOnUpload": "SHA-256 hash generated client-side before upload",
+        "storedOnServer": "Hash stored in Evidence.fileHash field",
+        "verificationUse": "Can be used to verify file hasn't been tampered with in storage",
+        "reHashPolicy": "Server may optionally re-hash on retrieval for verification (Phase 2+)"
+      },
+      "chainOfCustody": {
+        "creator": "Evidence.createdById records who captured it",
+        "site": "Evidence.siteId records where it was captured",
+        "context": "Evidence.contextType + contextId records why it was captured",
+        "time": "deviceTimestamp + serverTimestamp record when it was captured",
+        "auditLog": "Every Evidence creation logged in AuditLog"
+      }
+    }
+  },
+
+  "qualityRequirements": {
+    "photos": {
+      "minimumResolution": "800px on shortest dimension",
+      "compression": "JPEG quality 80-85% (if compression needed)",
+      "maxFileSizeMB": 10,
+      "exifPreservation": "Must extract and store before any compression",
+      "gpsPolicy": "Valuable when available, never required",
+      "clientSideWarnings": [
+        { "condition": "Shortest dimension < 800px", "message": "Photo quality may be too low for evidence purposes.", "blocking": false },
+        { "condition": "File size > 10MB", "message": "File too large. Will be compressed automatically.", "blocking": false },
+        { "condition": "No GPS available", "message": null, "blocking": false, "note": "No warning shown — normal on construction sites" }
+      ]
+    }
+  },
+
+  "uiIntegration": {
+    "evidenceInContext": {
+      "description": "Evidence appears inline within the context it was captured for.",
+      "display": {
+        "inDailyReport": "Thumbnail gallery within report view, expandable",
+        "inSnag": "Issue evidence shown on snag detail, resolution evidence shown separately",
+        "inChecklist": "Evidence icons next to checklist items that require/have evidence"
+      }
+    },
+    "evidenceStates": {
+      "pendingUpload": { "indicator": "Cloud upload icon with progress", "label": "Uploading..." },
+      "uploaded": { "indicator": "Green checkmark", "label": "Synced" },
+      "failed": { "indicator": "Red warning", "label": "Upload failed — tap to retry" }
+    },
+    "captureButton": {
+      "placement": "Prominent within each context (daily report form, snag form, etc.)",
+      "maxTapsToCapture": 1,
+      "icon": "Camera icon (universally understood)",
+      "uxPrinciple": "Capturing evidence must never feel like extra work"
+    }
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "OnsitePro Permission Model v1.0",
+  "generatedDate": "2026-02-07",
+  "prdVersion": "v1.0",
+  "phase": "Phase 0 — Foundation & Architecture",
+  "description": "Role-based access control specification for OnsitePro. Three roles: foreman, pm, admin. Permissions enforced at backend function level.",
+
+  "roles": {
+    "foreman": {
+      "description": "Primary frontline user. Captures operational truth on site. Cannot modify others' data or access admin functions.",
+      "priority": 1,
+      "designPriority": "All UX decisions prioritize foreman experience."
+    },
+    "pm": {
+      "description": "Supervisor/manager. Reviews data, flags risks, manages site structure. Cannot edit foreman truth directly.",
+      "priority": 2
+    },
+    "admin": {
+      "description": "Organization owner/administrator. Full management access. Cannot violate temporal integrity rules.",
+      "priority": 3
+    }
+  },
+
+  "permissions": {
+
+    "Organization": {
+      "create": { "foreman": false, "pm": false, "admin": true },
+      "read": { "foreman": false, "pm": true, "admin": true },
+      "update": { "foreman": false, "pm": false, "admin": true },
+      "delete": { "foreman": false, "pm": false, "admin": false, "note": "Organizations are never deleted" }
+    },
+
+    "User": {
+      "create": { "foreman": false, "pm": false, "admin": true },
+      "readSelf": { "foreman": true, "pm": true, "admin": true },
+      "readAll": { "foreman": false, "pm": true, "admin": true },
+      "updateSelf": { "foreman": "displayName only", "pm": "displayName only", "admin": true },
+      "updateOthers": { "foreman": false, "pm": false, "admin": true },
+      "deactivate": { "foreman": false, "pm": false, "admin": true }
+    },
+
+    "Site": {
+      "create": { "foreman": false, "pm": true, "admin": true },
+      "readAssigned": { "foreman": true, "pm": true, "admin": true },
+      "readAll": { "foreman": false, "pm": true, "admin": true },
+      "update": { "foreman": false, "pm": true, "admin": true },
+      "delete": { "foreman": false, "pm": false, "admin": false, "note": "Sites are never deleted, only deactivated" }
+    },
+
+    "SiteAssignment": {
+      "create": { "foreman": false, "pm": true, "admin": true },
+      "readBySite": { "foreman": "own site only", "pm": true, "admin": true },
+      "deactivate": { "foreman": false, "pm": true, "admin": true }
+    },
+
+    "DailyReport": {
+      "create": { "foreman": "own assigned sites only", "pm": false, "admin": false },
+      "readOwn": { "foreman": true, "pm": false, "admin": false },
+      "readBySite": { "foreman": "own reports only", "pm": true, "admin": true },
+      "readAll": { "foreman": false, "pm": true, "admin": true },
+      "updateDraft": { "foreman": "own drafts only", "pm": false, "admin": false },
+      "submit": { "foreman": "own drafts only", "pm": false, "admin": false },
+      "editAfterSubmit": { "foreman": false, "pm": false, "admin": false, "note": "IMMUTABLE. No role can edit submitted reports." },
+      "delete": { "foreman": false, "pm": false, "admin": false, "note": "Reports are NEVER deleted." }
+    },
+
+    "DailyReportAnnotation": {
+      "create": { "foreman": "on own reports", "pm": "on any report in assigned sites", "admin": "on any report" },
+      "read": { "foreman": "on own reports", "pm": true, "admin": true },
+      "edit": { "foreman": false, "pm": false, "admin": false, "note": "Annotations are immutable" },
+      "delete": { "foreman": false, "pm": false, "admin": false }
+    },
+
+    "TomorrowPlan": {
+      "create": { "foreman": "own assigned sites only", "pm": false, "admin": false },
+      "readOwn": { "foreman": true, "pm": false, "admin": false },
+      "readBySite": { "foreman": "own plans only", "pm": true, "admin": true },
+      "updateBeforePlanDate": { "foreman": "own plans only", "pm": false, "admin": false },
+      "updateAfterPlanDate": { "foreman": false, "pm": false, "admin": false, "note": "Locked after planDate arrives" }
+    },
+
+    "Evidence": {
+      "create": { "foreman": "own assigned sites only", "pm": false, "admin": false },
+      "readBySite": { "foreman": "own evidence", "pm": true, "admin": true },
+      "readAll": { "foreman": false, "pm": true, "admin": true },
+      "modify": { "foreman": false, "pm": false, "admin": false, "note": "Evidence is IMMUTABLE" },
+      "delete": { "foreman": false, "pm": false, "admin": false, "note": "Evidence is NEVER deleted" },
+      "archive": { "foreman": false, "pm": false, "admin": "with documented cause only" }
+    },
+
+    "Snag": {
+      "create": { "foreman": "own assigned sites only", "pm": "any assigned site", "admin": true },
+      "readBySite": { "foreman": "own snags + snags assigned to them", "pm": true, "admin": true },
+      "updateStatus": { "foreman": "own snags or snags assigned to them", "pm": true, "admin": true },
+      "reassignOwner": { "foreman": false, "pm": true, "admin": true },
+      "editCoreData": { "foreman": false, "pm": false, "admin": false, "note": "Core snag data is immutable after creation" },
+      "close": { "foreman": "snags assigned to them (requires evidence)", "pm": "any snag (requires evidence)", "admin": "any snag (requires evidence)" },
+      "autoClose": { "foreman": false, "pm": false, "admin": false, "note": "EXPLICITLY REJECTED per PRD" }
+    },
+
+    "SnagComment": {
+      "create": { "foreman": "on snags they created or own", "pm": "any snag in assigned sites", "admin": "any snag" },
+      "read": { "foreman": "on snags they created or own", "pm": true, "admin": true },
+      "edit": { "foreman": false, "pm": false, "admin": false, "note": "Comments are immutable" },
+      "delete": { "foreman": false, "pm": false, "admin": false }
+    },
+
+    "ChecklistTemplate": {
+      "create": { "foreman": false, "pm": true, "admin": true },
+      "read": { "foreman": "active templates for assigned sites", "pm": true, "admin": true },
+      "update": { "foreman": false, "pm": true, "admin": true },
+      "deactivate": { "foreman": false, "pm": true, "admin": true }
+    },
+
+    "ChecklistSubmission": {
+      "create": { "foreman": "own assigned sites only", "pm": false, "admin": false },
+      "readBySite": { "foreman": "own submissions", "pm": true, "admin": true },
+      "edit": { "foreman": false, "pm": false, "admin": false, "note": "Submissions are immutable" },
+      "delete": { "foreman": false, "pm": false, "admin": false }
+    },
+
+    "AuditLog": {
+      "read": { "foreman": false, "pm": false, "admin": true },
+      "create": { "foreman": "system-generated only", "pm": "system-generated only", "admin": "system-generated only", "note": "Audit logs are created by the system, not directly by users" },
+      "edit": { "foreman": false, "pm": false, "admin": false },
+      "delete": { "foreman": false, "pm": false, "admin": false }
+    }
+  },
+
+  "enforcementRules": {
+    "scopeEnforcement": {
+      "rule": "All data access is scoped by organization AND site assignment",
+      "details": [
+        "Foremen can only access data from sites they are assigned to via SiteAssignment",
+        "PMs can access all sites within their organization",
+        "Admins can access all data within their organization",
+        "No cross-organization data access is possible"
+      ]
+    },
+    "backendEnforcement": {
+      "rule": "ALL permission checks happen at the backend function level",
+      "details": [
+        "UI hides unauthorized actions but does NOT enforce access",
+        "Every backend function validates: (1) user identity, (2) role, (3) site assignment, (4) operation-specific rules",
+        "Failed permission checks return HTTP 403 with descriptive error code",
+        "All permission violations are logged to AuditLog"
+      ]
+    },
+    "immutabilityEnforcement": {
+      "rule": "Immutability rules are enforced at the backend level, not UI level",
+      "details": [
+        "Backend functions check record status before allowing mutations",
+        "Submitted DailyReports reject all update operations",
+        "Evidence records reject all update operations (except isArchived by admin)",
+        "Immutability violations return HTTP 409 Conflict",
+        "All attempted violations are logged to AuditLog"
+      ]
+    },
+    "correctionProtocol": {
+      "rule": "PMs cannot directly edit foreman data. Corrections follow annotation protocol.",
+      "flow": [
+        "1. PM identifies issue in foreman report/snag",
+        "2. PM creates annotation with type='amendment_request'",
+        "3. Foreman reviews annotation",
+        "4. Foreman creates new annotation with type='correction' if appropriate",
+        "5. Original record remains unchanged"
+      ]
+    }
+  },
+
+  "backendFunctionPermissions": {
+    "createDailyReport": {
+      "allowedRoles": ["foreman"],
+      "checks": ["user.role == 'foreman'", "user assigned to site", "site.isTestSite matches expected mode", "no duplicate for same date+site+user"]
+    },
+    "submitDailyReport": {
+      "allowedRoles": ["foreman"],
+      "checks": ["user.role == 'foreman'", "report.createdById == user.id", "report.status == 'draft'", "evidence requirements met"]
+    },
+    "createSnag": {
+      "allowedRoles": ["foreman", "pm"],
+      "checks": ["user assigned to site OR user.role in ['pm','admin']", "site.isTestSite matches expected mode"]
+    },
+    "updateSnagStatus": {
+      "allowedRoles": ["foreman", "pm", "admin"],
+      "checks": ["valid status transition", "if closing: resolution evidence exists", "user has access to snag's site"]
+    },
+    "uploadEvidence": {
+      "allowedRoles": ["foreman"],
+      "checks": ["user.role == 'foreman'", "user assigned to site", "file meets quality requirements", "site.isTestSite matches expected mode"]
+    },
+    "submitChecklist": {
+      "allowedRoles": ["foreman"],
+      "checks": ["user.role == 'foreman'", "user assigned to site", "all required items answered", "evidence provided where requiresEvidence=true"]
+    },
+    "syncOfflineActions": {
+      "allowedRoles": ["foreman", "pm", "admin"],
+      "checks": ["syncActionId not already processed (idempotency)", "each action passes its own permission checks"]
+    },
+    "validateSiteMode": {
+      "allowedRoles": ["system"],
+      "checks": ["called by other backend functions, not directly by users", "site.isTestSite matches expectedMode parameter"]
+    }
+  }
+}
