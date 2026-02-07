@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ─── Organization ────────────────────────────────────────────
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  sites              Site[]
+  checklistTemplates ChecklistTemplate[]
+}
+
+// ─── User ────────────────────────────────────────────────────
+model User {
+  id             String   @id @default(uuid())
+  organizationId String
+  email          String   @unique
+  displayName    String
+  passwordHash   String
+  role           String   // "foreman" | "pm" | "admin"
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastLoginAt    DateTime?
+
+  organization          Organization          @relation(fields: [organizationId], references: [id])
+  siteAssignments       SiteAssignment[]
+  createdSites          Site[]                @relation("SiteCreator")
+  createdDailyReports   DailyReport[]         @relation("DailyReportCreator")
+  dailyReportAnnotations DailyReportAnnotation[]
+  createdTomorrowPlans  TomorrowPlan[]        @relation("TomorrowPlanCreator")
+  createdEvidence       Evidence[]            @relation("EvidenceCreator")
+  createdSnags          Snag[]                @relation("SnagCreator")
+  ownedSnags            Snag[]                @relation("SnagOwner")
+  closedSnags           Snag[]                @relation("SnagCloser")
+  snagComments          SnagComment[]
+  createdChecklists     ChecklistTemplate[]   @relation("ChecklistCreator")
+  checklistSubmissions  ChecklistSubmission[]
+  syncActions           SyncAction[]
+  auditLogs             AuditLog[]
+
+  @@index([organizationId])
+  @@index([role])
+}
+
+// ─── Site ────────────────────────────────────────────────────
+model Site {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  address        String?
+  isTestSite     Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization          Organization          @relation(fields: [organizationId], references: [id])
+  createdBy             User                  @relation("SiteCreator", fields: [createdById], references: [id])
+  assignments           SiteAssignment[]
+  dailyReports          DailyReport[]
+  tomorrowPlans         TomorrowPlan[]
+  evidence              Evidence[]
+  snags                 Snag[]
+  checklistSubmissions  ChecklistSubmission[]
+
+  @@index([organizationId])
+  @@index([isTestSite])
+  @@index([isActive])
+}
+
+// ─── Site Assignment ─────────────────────────────────────────
+model SiteAssignment {
+  id           String   @id @default(uuid())
+  siteId       String
+  userId       String
+  assignedById String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  site     Site @relation(fields: [siteId], references: [id])
+  user     User @relation(fields: [userId], references: [id])
+
+  @@unique([siteId, userId])
+  @@index([siteId])
+  @@index([userId])
+}
+
+// ─── Daily Report ────────────────────────────────────────────
+model DailyReport {
+  id                String   @id @default(uuid())
+  siteId            String
+  createdById       String
+  reportDate        String   // ISO date string YYYY-MM-DD
+  status            String   @default("draft") // "draft" | "submitted"
+  workSummary       String
+  personnelOnSite   String?
+  issuesOrBlockers  String?
+  incidents         String?
+  weatherConditions String?
+  qaSafetyConfirmed Boolean  @default(false)
+  submittedAt       DateTime?
+  syncActionId      String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  site        Site                    @relation(fields: [siteId], references: [id])
+  createdBy   User                    @relation("DailyReportCreator", fields: [createdById], references: [id])
+  annotations DailyReportAnnotation[]
+  evidence    Evidence[]              @relation("DailyReportEvidence")
+  checklists  ChecklistSubmission[]
+
+  @@unique([siteId, createdById, reportDate])
+  @@index([siteId])
+  @@index([createdById])
+  @@index([reportDate])
+  @@index([status])
+}
+
+// ─── Daily Report Annotation ─────────────────────────────────
+model DailyReportAnnotation {
+  id             String   @id @default(uuid())
+  dailyReportId  String
+  createdById    String
+  content        String
+  annotationType String   // "correction" | "comment" | "amendment_request"
+  createdAt      DateTime @default(now())
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id])
+  createdBy   User        @relation(fields: [createdById], references: [id])
+
+  @@index([dailyReportId])
+  @@index([createdById])
+}
+
+// ─── Tomorrow Plan ───────────────────────────────────────────
+model TomorrowPlan {
+  id                String   @id @default(uuid())
+  siteId            String
+  createdById       String
+  planDate          String   // ISO date string YYYY-MM-DD
+  tasks             String
+  requiredResources String?
+  knownRisks        String?
+  syncActionId      String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  site      Site @relation(fields: [siteId], references: [id])
+  createdBy User @relation("TomorrowPlanCreator", fields: [createdById], references: [id])
+
+  @@unique([siteId, createdById, planDate])
+  @@index([siteId])
+  @@index([createdById])
+  @@index([planDate])
+}
+
+// ─── Evidence ────────────────────────────────────────────────
+model Evidence {
+  id                String   @id @default(uuid())
+  siteId            String
+  createdById       String
+  evidenceType      String   // "photo" | "note" | "attachment"
+  contextType       String?  // "daily_report" | "snag" | "checklist" | "general"
+  contextId         String?
+  fileUrl           String?
+  fileName          String?
+  fileSizeBytes     Int?
+  mimeType          String?
+  fileHash          String?
+  description       String?
+  deviceTimestamp    DateTime
+  serverTimestamp    DateTime @default(now())
+  gpsLatitude       Float?
+  gpsLongitude      Float?
+  gpsAccuracyMeters Float?
+  exifData          String?  // JSON string
+  imageWidthPx      Int?
+  imageHeightPx     Int?
+  isArchived        Boolean  @default(false)
+  syncActionId      String?  @unique
+  createdAt         DateTime @default(now())
+
+  site      Site @relation(fields: [siteId], references: [id])
+  createdBy User @relation("EvidenceCreator", fields: [createdById], references: [id])
+
+  // Polymorphic: contextType determines which entity contextId refers to
+  // Linking handled at application level, not via Prisma FK (contextId is polymorphic)
+  dailyReportId String?
+  dailyReport   DailyReport? @relation("DailyReportEvidence", fields: [dailyReportId], references: [id])
+
+  @@index([siteId])
+  @@index([createdById])
+  @@index([contextType, contextId])
+  @@index([evidenceType])
+  @@index([deviceTimestamp])
+}
+
+// ─── Snag ────────────────────────────────────────────────────
+model Snag {
+  id           String    @id @default(uuid())
+  siteId       String
+  createdById  String
+  title        String
+  description  String
+  category     String    // "safety" | "quality" | "rework" | "other"
+  ownerId      String
+  status       String    @default("open") // "open" | "in_progress" | "closed"
+  closedAt     DateTime?
+  closedById   String?
+  syncActionId String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  site      Site          @relation(fields: [siteId], references: [id])
+  createdBy User          @relation("SnagCreator", fields: [createdById], references: [id])
+  owner     User          @relation("SnagOwner", fields: [ownerId], references: [id])
+  closedBy  User?         @relation("SnagCloser", fields: [closedById], references: [id])
+  comments  SnagComment[]
+
+  @@index([siteId])
+  @@index([createdById])
+  @@index([ownerId])
+  @@index([status])
+  @@index([category])
+}
+
+// ─── Snag Comment ────────────────────────────────────────────
+model SnagComment {
+  id          String   @id @default(uuid())
+  snagId      String
+  createdById String
+  content     String
+  createdAt   DateTime @default(now())
+
+  snag      Snag @relation(fields: [snagId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([snagId])
+  @@index([createdById])
+}
+
+// ─── Checklist Template ──────────────────────────────────────
+model ChecklistTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  category       String   // "safety" | "quality" | "compliance" | "general"
+  isBlocking     Boolean  @default(false)
+  items          String   // JSON string: [{id, label, isRequired, requiresEvidence}]
+  isActive       Boolean  @default(true)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  createdBy    User                   @relation("ChecklistCreator", fields: [createdById], references: [id])
+  submissions  ChecklistSubmission[]
+
+  @@index([organizationId])
+  @@index([category])
+  @@index([isActive])
+}
+
+// ─── Checklist Submission ────────────────────────────────────
+model ChecklistSubmission {
+  id              String   @id @default(uuid())
+  templateId      String
+  siteId          String
+  createdById     String
+  dailyReportId   String?
+  responses       String   // JSON string: [{itemId, checked, note, evidenceId}]
+  allItemsPassed  Boolean
+  submittedAt     DateTime
+  syncActionId    String?  @unique
+  createdAt       DateTime @default(now())
+
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id])
+  site        Site              @relation(fields: [siteId], references: [id])
+  createdBy   User              @relation(fields: [createdById], references: [id])
+  dailyReport DailyReport?      @relation(fields: [dailyReportId], references: [id])
+
+  @@index([templateId])
+  @@index([siteId])
+  @@index([createdById])
+  @@index([dailyReportId])
+}
+
+// ─── Sync Action ─────────────────────────────────────────────
+model SyncAction {
+  id           String    @id @default(uuid())
+  syncActionId String    @unique
+  userId       String
+  actionType   String    // "createDailyReport" | "submitDailyReport" | etc.
+  payload      String    // JSON string
+  status       String    @default("pending") // "pending" | "in_progress" | "completed" | "failed"
+  retryCount   Int       @default(0)
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  processedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([syncActionId])
+  @@index([userId])
+  @@index([status])
+  @@index([actionType])
+}
+
+// ─── Audit Log ───────────────────────────────────────────────
+model AuditLog {
+  id              String   @id @default(uuid())
+  entityType      String
+  entityId        String
+  action          String   // "create" | "update" | "archive" | "submit" | "status_change"
+  performedById   String
+  changesBefore   String?  // JSON string
+  changesAfter    String?  // JSON string
+  comment         String?
+  serverTimestamp  DateTime @default(now())
+
+  performedBy User @relation(fields: [performedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([performedById])
+  @@index([action])
+  @@index([serverTimestamp])
+}
