@@ -64,4 +64,28 @@
   .badge-rework {
     @apply badge bg-amber-100 text-amber-700;
   }
+  .badge-other {
+    @apply badge bg-gray-100 text-gray-700;
+  }
+  .stat-card {
+    @apply card text-center transition-all hover:shadow-md;
+  }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
 }

@@ -1,19 +1,19 @@
 'use client'
 
-import { useAuth } from '@/components/AuthProvider'
 import { useEffect, useState } from 'react'
-import SiteSelector from '@/components/SiteSelector'
-
-type Site = { id: string; name: string; isTestSite: boolean }
+import { useSite } from '@/components/SiteProvider'
+import { useToast } from '@/components/ToastProvider'
+import LoadingSkeleton from '@/components/LoadingSkeleton'
+import EmptyState from '@/components/EmptyState'
 
 type Report = {
   id: string
   reportDate: string
   status: string
   workSummary: string
-  createdBy: { displayName: string }
-  _count: { annotations: number }
+  createdBy: { id: string; displayName: string }
   evidence: Array<{ id: string }>
+  _count: { annotations: number }
 }
 
 type Snag = {
@@ -21,20 +21,22 @@ type Snag = {
   title: string
   category: string
   status: string
-  owner: { displayName: string }
+  owner: { id: string; displayName: string }
   createdAt: string
 }
 
 export default function PMDashboard() {
-  const { user } = useAuth()
-  const [site, setSite] = useState<Site | null>(null)
+  const { site, loading: siteLoading } = useSite()
+  const { toast } = useToast()
   const [reports, setReports] = useState<Report[]>([])
   const [snags, setSnags] = useState<Snag[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!site) return
     setLoading(true)
+    setError(null)
     Promise.all([
       fetch(`/api/daily-reports?siteId=${site.id}`).then((r) => r.json()),
       fetch(`/api/snags?siteId=${site.id}`).then((r) => r.json()),
@@ -43,107 +45,209 @@ export default function PMDashboard() {
         setReports(reportData.reports || [])
         setSnags(snagData.snags || [])
       })
+      .catch(() => {
+        setError('Failed to load site data')
+        toast('Failed to load site data', 'error')
+      })
       .finally(() => setLoading(false))
-  }, [site])
+  }, [site]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openSnags = snags.filter((s) => s.status === 'open').length
-  const inProgressSnags = snags.filter((s) => s.status === 'in_progress').length
   const submittedReports = reports.filter((r) => r.status === 'submitted').length
   const draftReports = reports.filter((r) => r.status === 'draft').length
+  const openSnags = snags.filter((s) => s.status === 'open').length
+  const closedSnags = snags.filter((s) => s.status === 'closed').length
+  const totalSnags = snags.length
+  const resolutionRate = totalSnags > 0 ? Math.round((closedSnags / totalSnags) * 100) : 0
+
+  const urgentSnags = snags
+    .filter((s) => s.status === 'open')
+    .sort((a, b) => {
+      // Safety snags first
+      if (a.category === 'safety' && b.category !== 'safety') return -1
+      if (a.category !== 'safety' && b.category === 'safety') return 1
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+
+  if (siteLoading) {
+    return <LoadingSkeleton lines={4} />
+  }
+
+  if (!site) {
+    return (
+      <EmptyState
+        icon="search"
+        title="No site selected"
+        description="Select a site from the navigation bar to view the dashboard."
+      />
+    )
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">Site Dashboard</h1>
-        <div className="w-56">
-          <SiteSelector selectedSiteId={site?.id || null} onSelect={setSite} />
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Site Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{site.name}</p>
         </div>
       </div>
 
-      {site?.isTestSite && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium">
-          TEST MODE — Viewing test site data
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
         </div>
       )}
 
       {loading ? (
-        <div className="text-center py-8 text-gray-400 animate-pulse">Loading site data...</div>
-      ) : site ? (
+        <LoadingSkeleton lines={4} />
+      ) : (
         <>
-          {/* Stats grid */}
+          {/* Stats 2x2 grid */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="card text-center">
+            <div className="stat-card">
               <p className="text-3xl font-bold text-brand-600">{submittedReports}</p>
-              <p className="text-sm text-gray-500">Submitted Reports</p>
+              <p className="text-sm text-gray-500 mt-1">Submitted Reports</p>
             </div>
-            <div className="card text-center">
+            <div className="stat-card">
               <p className="text-3xl font-bold text-amber-500">{draftReports}</p>
-              <p className="text-sm text-gray-500">Draft Reports</p>
+              <p className="text-sm text-gray-500 mt-1">Draft Reports</p>
             </div>
-            <div className="card text-center">
+            <div className="stat-card">
               <p className={`text-3xl font-bold ${openSnags > 0 ? 'text-safety-red' : 'text-safety-green'}`}>
                 {openSnags}
               </p>
-              <p className="text-sm text-gray-500">Open Snags</p>
+              <p className="text-sm text-gray-500 mt-1">Open Snags</p>
             </div>
-            <div className="card text-center">
-              <p className="text-3xl font-bold text-amber-500">{inProgressSnags}</p>
-              <p className="text-sm text-gray-500">In Progress Snags</p>
+            <div className="stat-card">
+              <p className="text-3xl font-bold text-safety-green">{closedSnags}</p>
+              <p className="text-sm text-gray-500 mt-1">Closed Snags</p>
             </div>
           </div>
 
-          {/* Recent reports */}
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-gray-600">Recent Reports</h2>
-            {reports.slice(0, 5).map((r) => (
-              <div key={r.id} className="card">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">{r.reportDate}</span>
-                    <span className="text-sm text-gray-400 ml-2">by {r.createdBy.displayName}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {r.evidence.length > 0 && (
-                      <span className="text-xs text-gray-400">{r.evidence.length} evidence</span>
-                    )}
-                    <span className={`badge-${r.status}`}>{r.status}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">{r.workSummary}</p>
+          {/* Snag Resolution Progress */}
+          {totalSnags > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-600">Snag Resolution Rate</h2>
+                <span className="text-sm font-bold text-gray-700">{resolutionRate}%</span>
               </div>
-            ))}
-            {reports.length === 0 && (
-              <p className="text-sm text-gray-400 italic py-4 text-center">No reports yet</p>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all duration-500 ${
+                    resolutionRate >= 75 ? 'bg-green-500' :
+                    resolutionRate >= 40 ? 'bg-amber-500' :
+                    'bg-red-500'
+                  }`}
+                  style={{ width: `${resolutionRate}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                {closedSnags} of {totalSnags} snags resolved
+              </p>
+            </div>
+          )}
+
+          {/* Recent Reports (last 5) */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              Recent Reports
+            </h2>
+            {reports.length === 0 ? (
+              <EmptyState
+                icon="report"
+                title="No reports yet"
+                description="Reports from foremen will appear here once submitted."
+              />
+            ) : (
+              <div className="space-y-2">
+                {reports.slice(0, 5).map((r) => (
+                  <div key={r.id} className="card hover:border-brand-200 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-800">
+                            {new Date(r.reportDate + 'T00:00:00').toLocaleDateString('en-ZA', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                            })}
+                          </span>
+                          <span className={`badge badge-${r.status}`}>{r.status}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          by {r.createdBy.displayName}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-400 flex-shrink-0">
+                        {r.evidence.length > 0 && (
+                          <span>{r.evidence.length} evidence</span>
+                        )}
+                        {r._count.annotations > 0 && (
+                          <span>{r._count.annotations} notes</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1.5 line-clamp-2">{r.workSummary}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Open snags */}
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-gray-600">Open Snags</h2>
-            {snags
-              .filter((s) => s.status !== 'closed')
-              .slice(0, 5)
-              .map((s) => (
-                <div key={s.id} className="card">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-gray-700">{s.title}</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`badge-${s.category}`}>{s.category}</span>
-                        <span className="text-xs text-gray-400">Assigned to {s.owner.displayName}</span>
+          {/* Urgent Snags */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              Urgent Snags
+              {urgentSnags.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  ({urgentSnags.length} open)
+                </span>
+              )}
+            </h2>
+            {urgentSnags.length === 0 ? (
+              <EmptyState
+                icon="snag"
+                title="No open snags"
+                description="All snags have been addressed."
+              />
+            ) : (
+              <div className="space-y-2">
+                {urgentSnags.slice(0, 8).map((s) => (
+                  <div
+                    key={s.id}
+                    className={`card transition-colors ${
+                      s.category === 'safety'
+                        ? 'border-red-200 bg-red-50/50'
+                        : 'hover:border-brand-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-medium text-gray-800 truncate">{s.title}</h3>
+                          {s.category === 'safety' && (
+                            <span className="text-xs font-bold text-red-600 uppercase">URGENT</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`badge-${s.category}`}>{s.category}</span>
+                          <span className="text-xs text-gray-400">
+                            Assigned to {s.owner.displayName}
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
+                        {new Date(s.createdAt).toLocaleDateString('en-ZA', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </span>
                     </div>
-                    <span className={`badge-${s.status.replace('_', '-')}`}>{s.status.replace('_', ' ')}</span>
                   </div>
-                </div>
-              ))}
-            {snags.filter((s) => s.status !== 'closed').length === 0 && (
-              <p className="text-sm text-gray-400 italic py-4 text-center">No open snags</p>
+                ))}
+              </div>
             )}
           </div>
         </>
-      ) : (
-        <div className="text-center py-8 text-gray-400">Select a site to view dashboard</div>
       )}
     </div>
   )
