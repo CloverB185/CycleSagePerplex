@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState'
 import QuickActionCard from '@/components/QuickActionCard'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
+import clsx from 'clsx'
 import {
   ClipboardList,
   AlertTriangle,
@@ -16,6 +17,9 @@ import {
   FileText,
   HardHat,
   TrendingUp,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
 } from 'lucide-react'
 
 type ReportSummary = {
@@ -94,12 +98,11 @@ export default function ForemanDashboard() {
         todayReport: todayReport ? todayReport.status : null,
       })
 
-      // Activity feed
       const reportItems: ActivityItem[] = reports.slice(0, 8).map((r) => ({
         id: r.id,
         type: 'report' as const,
         title: `Daily Report — ${new Date(r.reportDate + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}`,
-        subtitle: r.workSummary.length > 70 ? r.workSummary.slice(0, 70) + '...' : r.workSummary,
+        subtitle: r.workSummary.length > 60 ? r.workSummary.slice(0, 60) + '...' : r.workSummary,
         date: r.reportDate,
         status: r.status,
       }))
@@ -130,7 +133,7 @@ export default function ForemanDashboard() {
   const firstName = user?.displayName?.split(' ')[0] || 'Foreman'
   const greeting = getGreeting()
   const today = new Date()
-  const todayStr = today.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })
+  const todayStr = today.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })
 
   if (siteLoading) return <LoadingSkeleton lines={4} />
 
@@ -145,75 +148,69 @@ export default function ForemanDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-6">
-      {/* Hero Greeting */}
-      <div className="bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 rounded-2xl p-5 text-white">
-        <div className="flex items-start justify-between">
-          <div>
+    <div className="space-y-4 animate-fade-in pb-8 px-4 pt-4">
+      {/* Hero Card — mobile-optimized */}
+      <div className="bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 rounded-2xl p-4 text-white">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <HardHat className="w-5 h-5 text-construction-400" />
-              <span className="text-sm font-medium text-brand-200">{greeting}</span>
+              <HardHat className="w-5 h-5 text-construction-400 flex-shrink-0" />
+              <span className="text-mobile-sm font-medium text-brand-200">{greeting}</span>
             </div>
-            <h1 className="text-2xl font-bold">{firstName}</h1>
-            <p className="text-sm text-brand-200 mt-1">{todayStr}</p>
+            <h1 className="text-mobile-2xl font-bold truncate">{firstName}</h1>
+            <p className="text-mobile-sm text-brand-300 mt-0.5">{todayStr}</p>
           </div>
+
+          {/* Report status badge */}
           {stats.todayReport === 'submitted' ? (
-            <div className="bg-green-500/20 border border-green-400/30 rounded-xl px-3 py-1.5 text-xs font-bold text-green-300 flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-400" />
-              Report Done
+            <div className="flex items-center gap-1.5 bg-green-500/20 border border-green-400/30 rounded-xl px-2.5 py-1.5 flex-shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+              <span className="text-mobile-xs font-bold text-green-300">Done</span>
             </div>
           ) : stats.todayReport === 'draft' ? (
-            <div className="bg-amber-500/20 border border-amber-400/30 rounded-xl px-3 py-1.5 text-xs font-bold text-amber-300 flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              Draft Saved
+            <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/30 rounded-xl px-2.5 py-1.5 flex-shrink-0">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-mobile-xs font-bold text-amber-300">Draft</span>
             </div>
           ) : (
-            <div className="bg-construction-500/20 border border-construction-400/30 rounded-xl px-3 py-1.5 text-xs font-bold text-construction-300 flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-construction-400 animate-pulse" />
-              Report Pending
+            <div className="flex items-center gap-1.5 bg-construction-500/20 border border-construction-400/30 rounded-xl px-2.5 py-1.5 flex-shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-construction-400 animate-pulse" />
+              <span className="text-mobile-xs font-bold text-construction-300">Pending</span>
             </div>
           )}
         </div>
 
-        {/* Site info bar */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
-          <MapPin className="w-4 h-4 text-brand-300" />
-          <span className="text-sm text-brand-200">{site.name}</span>
-          {site.address && <span className="text-xs text-brand-300 ml-1">— {site.address}</span>}
+        {/* Site bar */}
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
+          <MapPin className="w-3.5 h-3.5 text-brand-300 flex-shrink-0" />
+          <span className="text-mobile-sm text-brand-200 truncate">{site.name}</span>
         </div>
       </div>
 
-      {/* Stats Strip */}
+      {/* Stats Strip — 4 columns, compact */}
       {dataLoading ? (
         <LoadingSkeleton lines={1} />
       ) : (
         <div className="grid grid-cols-4 gap-2">
-          <div className="stat-card py-3 px-2">
-            <p className="text-xl font-bold text-brand-600">{stats.totalReports}</p>
-            <p className="text-[10px] text-site-500 mt-0.5 font-semibold uppercase tracking-wider">Reports</p>
-          </div>
-          <div className="stat-card py-3 px-2">
-            <p className={`text-xl font-bold ${stats.openSnags > 0 ? 'text-safety-red' : 'text-safety-green'}`}>
-              {stats.openSnags}
-            </p>
-            <p className="text-[10px] text-site-500 mt-0.5 font-semibold uppercase tracking-wider">Open</p>
-          </div>
-          <div className="stat-card py-3 px-2">
-            <p className={`text-xl font-bold ${stats.inProgressSnags > 0 ? 'text-safety-amber' : 'text-site-400'}`}>
-              {stats.inProgressSnags}
-            </p>
-            <p className="text-[10px] text-site-500 mt-0.5 font-semibold uppercase tracking-wider">In Prog</p>
-          </div>
-          <div className="stat-card py-3 px-2">
-            <p className="text-xl font-bold text-purple-600">{stats.tomorrowPlans}</p>
-            <p className="text-[10px] text-site-500 mt-0.5 font-semibold uppercase tracking-wider">Plans</p>
-          </div>
+          {[
+            { value: stats.totalReports, label: 'Reports', color: 'text-brand-600' },
+            { value: stats.openSnags, label: 'Open', color: stats.openSnags > 0 ? 'text-safety-red' : 'text-safety-green' },
+            { value: stats.inProgressSnags, label: 'In Prog', color: stats.inProgressSnags > 0 ? 'text-safety-amber' : 'text-site-400' },
+            { value: stats.tomorrowPlans, label: 'Plans', color: 'text-purple-600' },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-white rounded-xl border border-site-100 shadow-card py-3 px-2 text-center">
+              <p className={clsx('text-mobile-xl font-bold', stat.color)}>{stat.value}</p>
+              <p className="text-[10px] text-site-500 font-semibold uppercase tracking-wider mt-0.5">{stat.label}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Quick Actions */}
+      {/* Quick Actions — 120px cards */}
       <div className="space-y-3">
-        <h2 className="section-header">Quick Actions</h2>
+        <h2 className="text-mobile-xs font-bold text-site-500 uppercase tracking-widest px-1">
+          Quick Actions
+        </h2>
         <div className="grid gap-3">
           <QuickActionCard
             icon={ClipboardList}
@@ -223,7 +220,7 @@ export default function ForemanDashboard() {
                 ? 'Submitted — view or add evidence'
                 : stats.todayReport === 'draft'
                 ? 'Draft saved — continue editing'
-                : `Record what happened today`
+                : 'Record what happened today'
             }
             onClick={() => router.push('/foreman/daily-report')}
             variant="orange"
@@ -254,11 +251,11 @@ export default function ForemanDashboard() {
 
       {/* Recent Activity */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="section-header">Recent Activity</h2>
-          {activity.length > 0 && (
-            <TrendingUp className="w-4 h-4 text-site-400" />
-          )}
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-mobile-xs font-bold text-site-500 uppercase tracking-widest">
+            Recent Activity
+          </h2>
+          {activity.length > 0 && <TrendingUp className="w-4 h-4 text-site-400" />}
         </div>
         {dataLoading ? (
           <LoadingSkeleton lines={3} />
@@ -274,30 +271,34 @@ export default function ForemanDashboard() {
               <button
                 key={`${item.type}-${item.id}`}
                 onClick={() => router.push(item.type === 'report' ? '/foreman/daily-report' : '/foreman/snags')}
-                className="card-interactive w-full text-left"
+                className="w-full text-left bg-white rounded-xl border border-site-100 shadow-card p-3 active:scale-[0.98] transition-all"
               >
                 <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                  <div className={clsx(
+                    'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
                     item.type === 'report' ? 'bg-brand-50' : 'bg-construction-50'
-                  }`}>
+                  )}>
                     {item.type === 'report' ? (
-                      <FileText className="w-4 h-4 text-brand-600" />
+                      <FileText className="w-5 h-5 text-brand-600" />
                     ) : (
-                      <AlertTriangle className="w-4 h-4 text-construction-600" />
+                      <AlertTriangle className="w-5 h-5 text-construction-600" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-site-800 truncate">{item.title}</h3>
-                      <span className={`flex-shrink-0 ${
-                        item.type === 'report'
-                          ? `badge-${item.status}`
-                          : `badge-${item.status.replace('_', '-')}`
-                      }`}>
+                      <h3 className="text-mobile-sm font-semibold text-site-800 truncate">{item.title}</h3>
+                      <span className={clsx(
+                        'flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase',
+                        item.status === 'submitted' && 'bg-brand-100 text-brand-700',
+                        item.status === 'draft' && 'bg-site-100 text-site-600',
+                        item.status === 'open' && 'bg-red-100 text-red-800',
+                        item.status === 'in_progress' && 'bg-amber-100 text-amber-800',
+                        item.status === 'closed' && 'bg-green-100 text-green-800',
+                      )}>
                         {item.status.replace('_', ' ')}
                       </span>
                     </div>
-                    <p className="text-sm text-site-500 truncate">{item.subtitle}</p>
+                    <p className="text-mobile-xs text-site-500 truncate mt-0.5">{item.subtitle}</p>
                   </div>
                 </div>
               </button>

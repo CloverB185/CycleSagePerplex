@@ -3,54 +3,71 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-site-50 text-site-800 antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Mobile-first: 390px base viewport */
+  * {
+    -webkit-overflow-scrolling: touch;
   }
 }
 
 @layer components {
+  /* === Buttons === */
   .btn-primary {
-    @apply bg-construction-500 text-white px-5 py-3 rounded-action font-semibold text-base
+    @apply bg-construction-500 text-white px-5 py-3 rounded-action font-semibold text-mobile-base
            hover:bg-construction-600 active:bg-construction-700 active:scale-[0.98]
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150 shadow-action;
+           transition-all duration-150 shadow-action min-h-touch;
   }
   .btn-secondary {
-    @apply bg-white text-site-700 px-5 py-3 rounded-action font-semibold text-base
+    @apply bg-white text-site-700 px-5 py-3 rounded-action font-semibold text-mobile-base
            border-2 border-site-200 hover:bg-site-50 hover:border-site-300
            active:bg-site-100 active:scale-[0.98]
-           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 min-h-touch;
   }
   .btn-danger {
-    @apply bg-safety-red text-white px-5 py-3 rounded-action font-semibold text-base
+    @apply bg-safety-red text-white px-5 py-3 rounded-action font-semibold text-mobile-base
            hover:bg-red-700 active:bg-red-800 active:scale-[0.98]
-           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 min-h-touch;
   }
   .btn-brand {
-    @apply bg-brand-600 text-white px-5 py-3 rounded-action font-semibold text-base
+    @apply bg-brand-600 text-white px-5 py-3 rounded-action font-semibold text-mobile-base
            hover:bg-brand-700 active:bg-brand-800 active:scale-[0.98]
-           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150;
+           disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 min-h-touch;
   }
+
+  /* === Form fields === */
   .input-field {
     @apply w-full px-4 py-3 border-2 border-site-200 rounded-xl
            focus:ring-2 focus:ring-construction-400 focus:border-construction-500
-           placeholder-site-400 text-base bg-white transition-colors;
+           placeholder-site-400 text-mobile-base bg-white transition-colors min-h-touch;
   }
   .textarea-field {
     @apply w-full px-4 py-3 border-2 border-site-200 rounded-xl
            focus:ring-2 focus:ring-construction-400 focus:border-construction-500
-           placeholder-site-400 text-base resize-none bg-white transition-colors;
+           placeholder-site-400 text-mobile-base resize-none bg-white transition-colors;
   }
+
+  /* === Cards === */
   .card {
-    @apply bg-white rounded-2xl shadow-card border border-site-200 p-4
+    @apply bg-white rounded-2xl shadow-card border border-site-100 p-4
            transition-shadow duration-200;
   }
   .card-interactive {
     @apply card cursor-pointer hover:shadow-card-hover hover:border-site-300
            active:scale-[0.98] transition-all duration-150;
   }
+
+  /* === Badges === */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase;
   }
   .badge-open {
     @apply badge bg-red-100 text-red-800;
@@ -79,19 +96,50 @@
   .badge-other {
     @apply badge bg-site-100 text-site-600;
   }
+
+  /* === Stat cards === */
   .stat-card {
     @apply card text-center transition-all hover:shadow-card-hover;
   }
-  /* Construction-grade section headers */
+
+  /* === Section headers === */
   .section-header {
-    @apply text-xs font-bold text-site-500 uppercase tracking-widest;
+    @apply text-mobile-xs font-bold text-site-500 uppercase tracking-widest;
   }
-  /* Large touch target for foreman use */
+
+  /* === Touch targets === */
   .touch-target {
-    @apply min-h-[56px] flex items-center;
+    @apply min-h-touch flex items-center;
+  }
+  .touch-target-lg {
+    @apply min-h-touch-lg flex items-center;
+  }
+
+  /* === Safe area === */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* === Mobile scrolling === */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* === Mobile-optimized list items === */
+  .list-item-mobile {
+    @apply flex items-center gap-3 p-3 rounded-xl bg-white border border-site-100
+           active:scale-[0.98] active:bg-site-50 transition-all min-h-touch;
   }
 }
 
+/* === Animations === */
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(1rem); }
   to { opacity: 1; transform: translateY(0); }
@@ -107,6 +155,11 @@
   50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
 }
 
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
@@ -117,4 +170,23 @@
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 0.6s ease-in-out;
+}
+
+/* === Mobile viewport simulation helper === */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

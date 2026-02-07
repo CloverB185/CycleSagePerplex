@@ -6,6 +6,14 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    // Mobile-first breakpoints
+    screens: {
+      'xs': '390px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+    },
     extend: {
       colors: {
         // Construction-grade primary: Industrial Blue
@@ -59,9 +67,30 @@ module.exports = {
         'card': '0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.06)',
         'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.08)',
         'action': '0 4px 14px 0 rgba(249, 115, 22, 0.25)',
+        'mobile': '0 -1px 3px 0 rgba(0, 0, 0, 0.05)',
       },
       borderRadius: {
         'action': '14px',
+      },
+      spacing: {
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-top': 'env(safe-area-inset-top)',
+      },
+      fontSize: {
+        'mobile-xs': ['11px', '14px'],
+        'mobile-sm': ['13px', '18px'],
+        'mobile-base': ['15px', '22px'],
+        'mobile-lg': ['17px', '24px'],
+        'mobile-xl': ['20px', '28px'],
+        'mobile-2xl': ['24px', '32px'],
+      },
+      minHeight: {
+        'touch': '44px',
+        'touch-lg': '56px',
+      },
+      maxWidth: {
+        'mobile': '390px',
+        'tablet': '768px',
       },
     },
   },
