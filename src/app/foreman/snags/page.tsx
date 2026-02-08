@@ -7,6 +7,19 @@ import EmptyState from '@/components/EmptyState'
 import EvidenceUpload from '@/components/EvidenceUpload'
 import EvidenceList from '@/components/EvidenceList'
 import { useState, useEffect, useCallback } from 'react'
+import clsx from 'clsx'
+import {
+  ArrowLeft,
+  Plus,
+  X,
+  AlertTriangle,
+  Camera,
+  MessageSquare,
+  ChevronRight,
+  Play,
+  RotateCcw,
+  CheckCircle2,
+} from 'lucide-react'
 
 type Snag = {
   id: string
@@ -35,11 +48,11 @@ type SiteUser = {
   role: string
 }
 
-const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
-  safety: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-l-red-500' },
-  quality: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-l-blue-500' },
-  rework: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-l-amber-500' },
-  other: { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-l-gray-400' },
+const categoryColors: Record<string, { border: string }> = {
+  safety: { border: 'border-l-red-500' },
+  quality: { border: 'border-l-blue-500' },
+  rework: { border: 'border-l-amber-500' },
+  other: { border: 'border-l-site-400' },
 }
 
 export default function SnagListPage() {
@@ -84,7 +97,6 @@ export default function SnagListPage() {
       const fetchedSnags: Snag[] = data.snags || []
       setSnags(fetchedSnags)
 
-      // If no filter is active, use these to compute counts
       if (!filter) {
         setAllSnags(fetchedSnags)
         const open = fetchedSnags.filter((s) => s.status === 'open').length
@@ -99,7 +111,6 @@ export default function SnagListPage() {
     }
   }, [site, filter, toast])
 
-  // Load counts separately if filter is active (so summary bar always shows totals)
   const loadCounts = useCallback(async () => {
     if (!site || !filter) return
     try {
@@ -116,7 +127,6 @@ export default function SnagListPage() {
     }
   }, [site, filter])
 
-  // Load site users for the assignment dropdown
   const loadUsers = useCallback(async () => {
     if (!site) return
     try {
@@ -206,7 +216,7 @@ export default function SnagListPage() {
   }
 
   // Add comment
-  const addComment = async (snagId: string) => {
+  const handleAddComment = async (snagId: string) => {
     if (!comment.trim()) return
     setAddingComment(true)
     try {
@@ -248,47 +258,60 @@ export default function SnagListPage() {
   // ==================== DETAIL VIEW ====================
   if (selectedSnag && detail) {
     return (
-      <div className="space-y-4 pb-8 animate-fade-in">
+      <div className="space-y-4 pb-8 animate-fade-in px-4 pt-4">
         <button
           onClick={() => {
             setSelectedSnag(null)
             setDetail(null)
           }}
-          className="text-sm text-brand-600 hover:underline flex items-center gap-1"
+          className="text-mobile-sm text-brand-600 hover:underline flex items-center gap-1.5 min-h-touch"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ArrowLeft className="w-4 h-4" />
           Back to snags
         </button>
 
         {/* Snag Header Card */}
-        <div className={`card space-y-3 border-l-4 ${categoryColors[detail.category]?.border || 'border-l-gray-400'}`}>
+        <div className={clsx(
+          'card space-y-3 border-l-4',
+          categoryColors[detail.category]?.border || 'border-l-site-400'
+        )}>
           <div className="flex items-start justify-between">
-            <h1 className="text-lg font-bold text-gray-800">{detail.title}</h1>
+            <h1 className="text-mobile-lg font-bold text-site-800">{detail.title}</h1>
             <span className={`badge-${detail.status.replace('_', '-')}`}>{detail.status.replace('_', ' ')}</span>
           </div>
           <span className={`badge-${detail.category}`}>{detail.category}</span>
-          <p className="text-sm text-gray-700">{detail.description}</p>
-          <div className="flex gap-4 text-xs text-gray-400">
+          <p className="text-mobile-sm text-site-700">{detail.description}</p>
+          <div className="flex gap-4 text-mobile-xs text-site-400">
             <span>Created by {detail.createdBy?.displayName}</span>
             <span>Assigned to {detail.owner?.displayName}</span>
           </div>
 
           {/* Status actions */}
           {detail.status !== 'closed' && (
-            <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <div className="flex gap-2 pt-2 border-t border-site-100">
               {detail.status === 'open' && (
-                <button onClick={() => updateStatus(detail.id, 'in_progress')} className="btn-secondary text-sm">
+                <button
+                  onClick={() => updateStatus(detail.id, 'in_progress')}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4" />
                   Start Work
                 </button>
               )}
               {detail.status === 'in_progress' && (
                 <>
-                  <button onClick={() => updateStatus(detail.id, 'open')} className="btn-secondary text-sm">
+                  <button
+                    onClick={() => updateStatus(detail.id, 'open')}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
                     Reopen
                   </button>
-                  <button onClick={() => updateStatus(detail.id, 'closed')} className="btn-primary text-sm">
+                  <button
+                    onClick={() => updateStatus(detail.id, 'closed')}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
                     Close Snag
                   </button>
                 </>
@@ -299,10 +322,12 @@ export default function SnagListPage() {
 
         {/* Timeline */}
         <div className="card space-y-4">
-          <h2 className="font-semibold text-gray-800">Timeline</h2>
+          <h2 className="font-semibold text-site-800 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-site-400" />
+            Timeline
+          </h2>
           <div className="relative pl-6">
-            {/* Timeline line */}
-            <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-gray-200" />
+            <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-site-200" />
 
             {/* Created event */}
             <div className="relative mb-4">
@@ -310,8 +335,8 @@ export default function SnagListPage() {
                 <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
               </div>
               <div className="ml-2">
-                <p className="text-sm font-medium text-gray-700">Snag created</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-mobile-sm font-medium text-site-700">Snag created</p>
+                <p className="text-mobile-xs text-site-400">
                   {detail.createdBy?.displayName} &middot; {new Date(detail.createdAt).toLocaleString('en-ZA')}
                 </p>
               </div>
@@ -320,30 +345,28 @@ export default function SnagListPage() {
             {/* Comments as timeline events */}
             {detail.comments?.map((c) => (
               <div key={c.id} className="relative mb-4">
-                <div className="absolute -left-6 top-1 w-[18px] h-[18px] rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                <div className="absolute -left-6 top-1 w-[18px] h-[18px] rounded-full bg-site-100 border-2 border-site-300 flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-site-400" />
                 </div>
-                <div className="ml-2 bg-gray-50 rounded-lg p-3">
+                <div className="ml-2 bg-site-50 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium">{c.createdBy.displayName}</span>
-                    <span className="text-xs text-gray-400 capitalize">{c.createdBy.role}</span>
+                    <span className="text-mobile-sm font-medium">{c.createdBy.displayName}</span>
+                    <span className="text-mobile-xs text-site-400 capitalize">{c.createdBy.role}</span>
                   </div>
-                  <p className="text-sm text-gray-700">{c.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">{new Date(c.createdAt).toLocaleString('en-ZA')}</p>
+                  <p className="text-mobile-sm text-site-700">{c.content}</p>
+                  <p className="text-mobile-xs text-site-400 mt-1">{new Date(c.createdAt).toLocaleString('en-ZA')}</p>
                 </div>
               </div>
             ))}
 
-            {/* Closed event if applicable */}
+            {/* Closed event */}
             {detail.status === 'closed' && (
               <div className="relative mb-4">
                 <div className="absolute -left-6 top-1 w-[18px] h-[18px] rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center">
-                  <svg className="w-2.5 h-2.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
+                  <CheckCircle2 className="w-2.5 h-2.5 text-green-600" />
                 </div>
                 <div className="ml-2">
-                  <p className="text-sm font-medium text-green-700">Snag closed</p>
+                  <p className="text-mobile-sm font-medium text-green-700">Snag closed</p>
                 </div>
               </div>
             )}
@@ -351,17 +374,17 @@ export default function SnagListPage() {
 
           {/* Add comment */}
           {detail.status !== 'closed' && (
-            <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <div className="flex gap-2 pt-2 border-t border-site-100">
               <input
-                className="input-field text-sm"
+                className="input-field"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Add a comment..."
-                onKeyDown={(e) => e.key === 'Enter' && !addingComment && addComment(detail.id)}
+                onKeyDown={(e) => e.key === 'Enter' && !addingComment && handleAddComment(detail.id)}
               />
               <button
-                onClick={() => addComment(detail.id)}
-                className="btn-secondary text-sm whitespace-nowrap"
+                onClick={() => handleAddComment(detail.id)}
+                className="btn-brand whitespace-nowrap"
                 disabled={!comment.trim() || addingComment}
               >
                 {addingComment ? 'Sending...' : 'Send'}
@@ -372,14 +395,11 @@ export default function SnagListPage() {
 
         {/* Evidence */}
         <div className="card space-y-3">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+          <h2 className="font-semibold text-site-800 flex items-center gap-2">
+            <Camera className="w-4 h-4 text-site-400" />
             Evidence
             {detailEvidence.length > 0 && (
-              <span className="badge bg-brand-100 text-brand-700 text-xs">{detailEvidence.length}</span>
+              <span className="badge bg-brand-100 text-brand-700 text-mobile-xs">{detailEvidence.length}</span>
             )}
           </h2>
           <EvidenceList evidence={detailEvidence as never[]} />
@@ -401,38 +421,39 @@ export default function SnagListPage() {
 
   // ==================== LIST VIEW ====================
   return (
-    <div className="space-y-4 pb-8 animate-fade-in">
+    <div className="space-y-4 pb-8 animate-fade-in px-4 pt-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">Snags</h1>
+        <h1 className="text-mobile-xl font-bold text-site-800">Snags</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="btn-primary text-sm flex items-center gap-1"
+          className="btn-primary flex items-center gap-1.5"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-4 h-4" />
           New Snag
         </button>
       </div>
 
       {/* Summary Bar */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="stat-card text-center">
-          <p className={`text-xl font-bold ${counts.open > 0 ? 'text-safety-red' : 'text-gray-400'}`}>{counts.open}</p>
-          <p className="text-xs text-gray-500">Open</p>
+        <div className="stat-card">
+          <AlertTriangle className={clsx('w-4 h-4 mx-auto mb-1', counts.open > 0 ? 'text-safety-red' : 'text-site-400')} />
+          <p className={clsx('text-mobile-xl font-bold', counts.open > 0 ? 'text-safety-red' : 'text-site-400')}>{counts.open}</p>
+          <p className="text-mobile-xs text-site-500">Open</p>
         </div>
-        <div className="stat-card text-center">
-          <p className={`text-xl font-bold ${counts.in_progress > 0 ? 'text-amber-500' : 'text-gray-400'}`}>{counts.in_progress}</p>
-          <p className="text-xs text-gray-500">In Progress</p>
+        <div className="stat-card">
+          <div className={clsx('w-4 h-4 mx-auto mb-1 rounded-full', counts.in_progress > 0 ? 'bg-amber-400' : 'bg-site-300')} />
+          <p className={clsx('text-mobile-xl font-bold', counts.in_progress > 0 ? 'text-amber-500' : 'text-site-400')}>{counts.in_progress}</p>
+          <p className="text-mobile-xs text-site-500">In Progress</p>
         </div>
-        <div className="stat-card text-center">
-          <p className={`text-xl font-bold ${counts.closed > 0 ? 'text-safety-green' : 'text-gray-400'}`}>{counts.closed}</p>
-          <p className="text-xs text-gray-500">Closed</p>
+        <div className="stat-card">
+          <CheckCircle2 className={clsx('w-4 h-4 mx-auto mb-1', counts.closed > 0 ? 'text-safety-green' : 'text-site-400')} />
+          <p className={clsx('text-mobile-xl font-bold', counts.closed > 0 ? 'text-safety-green' : 'text-site-400')}>{counts.closed}</p>
+          <p className="text-mobile-xs text-site-500">Closed</p>
         </div>
       </div>
 
       {/* Filter Pills */}
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {[
           { value: '', label: 'All', count: allSnags.length },
           { value: 'open', label: 'Open', count: counts.open },
@@ -442,37 +463,36 @@ export default function SnagListPage() {
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            className={clsx(
+              'px-4 py-2 rounded-full text-mobile-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 min-h-touch',
               filter === f.value
                 ? 'bg-brand-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
-            }`}
+                : 'bg-white text-site-600 border border-site-200 hover:border-site-300'
+            )}
           >
             {f.label}
-            <span className={`text-xs ${filter === f.value ? 'text-brand-200' : 'text-gray-400'}`}>
+            <span className={clsx('text-mobile-xs', filter === f.value ? 'text-brand-200' : 'text-site-400')}>
               {f.count}
             </span>
           </button>
         ))}
       </div>
 
-      {/* Create Snag Form (slide-in card) */}
+      {/* Create Snag Form */}
       {showCreate && (
-        <div className="card space-y-3 border-l-4 border-l-brand-500 animate-fade-in">
+        <div className="card space-y-3 border-l-4 border-l-brand-500 animate-slide-up">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">New Snag</h2>
+            <h2 className="text-mobile-lg font-semibold text-site-800">New Snag</h2>
             <button
               onClick={() => setShowCreate(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-site-400 hover:text-site-600 p-1"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
               Title <span className="text-safety-red">*</span>
             </label>
             <input
@@ -484,7 +504,7 @@ export default function SnagListPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
               Description <span className="text-safety-red">*</span>
             </label>
             <textarea
@@ -498,7 +518,7 @@ export default function SnagListPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">Category</label>
               <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value)}>
                 <option value="safety">Safety</option>
                 <option value="quality">Quality</option>
@@ -507,7 +527,7 @@ export default function SnagListPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
                 Assign to <span className="text-safety-red">*</span>
               </label>
               <select className="input-field" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
@@ -556,27 +576,28 @@ export default function SnagListPage() {
               <button
                 key={snag.id}
                 onClick={() => loadDetail(snag.id)}
-                className={`card w-full text-left hover:border-brand-300 transition-colors border-l-4 ${colors.border}`}
+                className={clsx(
+                  'card w-full text-left hover:border-brand-300 active:scale-[0.98] transition-all border-l-4',
+                  colors.border
+                )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-gray-800 truncate">{snag.title}</h3>
-                    <p className="text-sm text-gray-500 truncate">{snag.description}</p>
+                    <h3 className="text-mobile-sm font-medium text-site-800 truncate">{snag.title}</h3>
+                    <p className="text-mobile-xs text-site-500 truncate">{snag.description}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className={`badge-${snag.category}`}>{snag.category}</span>
-                      <span className="text-xs text-gray-400">
-                        Assigned to {snag.owner.displayName}
+                      <span className="text-mobile-xs text-site-400">
+                        {snag.owner.displayName}
                       </span>
                       {snag._count && snag._count.comments > 0 && (
-                        <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
+                        <span className="text-mobile-xs text-site-400 flex items-center gap-0.5">
+                          <MessageSquare className="w-3 h-3" />
                           {snag._count.comments}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-mobile-xs text-site-400 mt-1">
                       {new Date(snag.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
@@ -584,9 +605,7 @@ export default function SnagListPage() {
                     <span className={`badge-${snag.status.replace('_', '-')}`}>
                       {snag.status.replace('_', ' ')}
                     </span>
-                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                    <ChevronRight className="w-4 h-4 text-site-300" />
                   </div>
                 </div>
               </button>

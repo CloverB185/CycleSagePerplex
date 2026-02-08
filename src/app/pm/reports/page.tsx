@@ -6,6 +6,17 @@ import { useToast } from '@/components/ToastProvider'
 import LoadingSkeleton from '@/components/LoadingSkeleton'
 import EmptyState from '@/components/EmptyState'
 import EvidenceList from '@/components/EvidenceList'
+import clsx from 'clsx'
+import {
+  ArrowLeft,
+  FileText,
+  Camera,
+  MessageSquare,
+  CheckCircle2,
+  XCircle,
+  Lock,
+  MapPin,
+} from 'lucide-react'
 
 type Report = {
   id: string
@@ -136,25 +147,26 @@ export default function PMReportsPage() {
   // Detail view
   if (selected) {
     return (
-      <div className="space-y-4 pb-8 animate-fade-in">
+      <div className="space-y-4 pb-8 animate-fade-in px-4 pt-4">
         <button
           onClick={() => setSelected(null)}
-          className="text-sm text-brand-600 hover:underline flex items-center gap-1"
+          className="text-mobile-sm text-brand-600 hover:underline flex items-center gap-1.5 min-h-touch"
         >
-          &larr; Back to reports
+          <ArrowLeft className="w-4 h-4" />
+          Back to reports
         </button>
 
         {/* Report header */}
         <div className="card space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-mobile-lg font-semibold text-site-800">
                 {formatDate(selected.reportDate)}
               </h2>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-mobile-xs text-site-500 mt-0.5">
                 by {selected.createdBy.displayName}
                 {selected.submittedAt && (
-                  <span className="ml-2 text-gray-400">
+                  <span className="ml-2 text-site-400">
                     &middot; Submitted {new Date(selected.submittedAt).toLocaleString('en-ZA')}
                   </span>
                 )}
@@ -164,22 +176,18 @@ export default function PMReportsPage() {
           </div>
 
           {/* Report sections */}
-          <div className="space-y-4 pt-2 border-t border-gray-100">
+          <div className="space-y-4 pt-2 border-t border-site-100">
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Work Summary
-              </h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line mt-1.5">
+              <h3 className="section-header">Work Summary</h3>
+              <p className="text-mobile-sm text-site-700 whitespace-pre-line mt-1.5">
                 {selected.workSummary}
               </p>
             </div>
 
             {selected.personnelOnSite && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Personnel on Site
-                </h3>
-                <p className="text-sm text-gray-700 whitespace-pre-line mt-1.5">
+                <h3 className="section-header">Personnel on Site</h3>
+                <p className="text-mobile-sm text-site-700 whitespace-pre-line mt-1.5">
                   {selected.personnelOnSite}
                 </p>
               </div>
@@ -187,10 +195,8 @@ export default function PMReportsPage() {
 
             {selected.issuesOrBlockers && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Issues / Blockers
-                </h3>
-                <p className="text-sm text-gray-700 whitespace-pre-line mt-1.5">
+                <h3 className="section-header">Issues / Blockers</h3>
+                <p className="text-mobile-sm text-site-700 whitespace-pre-line mt-1.5">
                   {selected.issuesOrBlockers}
                 </p>
               </div>
@@ -198,10 +204,8 @@ export default function PMReportsPage() {
 
             {selected.incidents && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Incidents
-                </h3>
-                <p className="text-sm text-gray-700 whitespace-pre-line mt-1.5">
+                <h3 className="section-header">Incidents</h3>
+                <p className="text-mobile-sm text-site-700 whitespace-pre-line mt-1.5">
                   {selected.incidents}
                 </p>
               </div>
@@ -209,35 +213,28 @@ export default function PMReportsPage() {
 
             {selected.weatherConditions && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Weather Conditions
-                </h3>
-                <p className="text-sm text-gray-700 mt-1.5">{selected.weatherConditions}</p>
+                <h3 className="section-header">Weather Conditions</h3>
+                <p className="text-mobile-sm text-site-700 mt-1.5">{selected.weatherConditions}</p>
               </div>
             )}
 
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                QA / Safety Confirmed
-              </h3>
+              <h3 className="section-header">QA / Safety Confirmed</h3>
               <div className="flex items-center gap-2 mt-1.5">
                 <span
-                  className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 text-mobile-sm font-medium',
                     selected.qaSafetyConfirmed ? 'text-safety-green' : 'text-safety-red'
-                  }`}
+                  )}
                 >
                   {selected.qaSafetyConfirmed ? (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
+                      <CheckCircle2 className="w-4 h-4" />
                       Confirmed
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <XCircle className="w-4 h-4" />
                       Not confirmed
                     </>
                   )}
@@ -250,8 +247,11 @@ export default function PMReportsPage() {
         {/* Evidence Gallery */}
         <div className="card space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Evidence</h2>
-            <span className="text-xs text-gray-400">
+            <h2 className="font-semibold text-site-800 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-site-400" />
+              Evidence
+            </h2>
+            <span className="text-mobile-xs text-site-400">
               {selected.evidence.length} item{selected.evidence.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -261,37 +261,41 @@ export default function PMReportsPage() {
         {/* Annotations */}
         <div className="card space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Annotations</h2>
-            <span className="text-xs text-gray-400">
+            <h2 className="font-semibold text-site-800 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-site-400" />
+              Annotations
+            </h2>
+            <span className="text-mobile-xs text-site-400">
               {selected.annotations?.length || 0} annotation{(selected.annotations?.length || 0) !== 1 ? 's' : ''}
             </span>
           </div>
 
           {(!selected.annotations || selected.annotations.length === 0) && (
-            <p className="text-sm text-gray-400 italic">No annotations yet</p>
+            <p className="text-mobile-sm text-site-400 italic">No annotations yet</p>
           )}
 
           {selected.annotations?.map((a) => (
-            <div key={a.id} className="bg-gray-50 rounded-lg p-3">
+            <div key={a.id} className="bg-site-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-medium text-gray-800">
+                <span className="text-mobile-sm font-medium text-site-800">
                   {a.createdBy.displayName}
                 </span>
-                <span className="text-xs text-gray-400 capitalize">{a.createdBy.role}</span>
+                <span className="text-mobile-xs text-site-400 capitalize">{a.createdBy.role}</span>
                 <span
-                  className={`badge text-xs ${
+                  className={clsx(
+                    'badge text-mobile-xs',
                     a.annotationType === 'amendment_request'
                       ? 'bg-amber-100 text-amber-700'
                       : a.annotationType === 'correction'
                       ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
+                      : 'bg-site-100 text-site-600'
+                  )}
                 >
                   {a.annotationType.replace('_', ' ')}
                 </span>
               </div>
-              <p className="text-sm text-gray-700">{a.content}</p>
-              <p className="text-xs text-gray-400 mt-1.5">
+              <p className="text-mobile-sm text-site-700">{a.content}</p>
+              <p className="text-mobile-xs text-site-400 mt-1.5">
                 {new Date(a.createdAt).toLocaleString('en-ZA')}
               </p>
             </div>
@@ -299,17 +303,17 @@ export default function PMReportsPage() {
 
           {/* Add annotation form -- only for submitted reports */}
           {selected.status === 'submitted' && (
-            <div className="space-y-3 pt-3 border-t border-gray-100">
+            <div className="space-y-3 pt-3 border-t border-site-100">
               <textarea
-                className="textarea-field text-sm"
+                className="textarea-field"
                 rows={3}
                 value={annotationText}
                 onChange={(e) => setAnnotationText(e.target.value)}
                 placeholder="Add a comment or request an amendment..."
               />
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+              <div className="flex flex-col xs:flex-row items-start xs:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer min-h-touch">
                     <input
                       type="radio"
                       name="annotationType"
@@ -317,9 +321,9 @@ export default function PMReportsPage() {
                       onChange={() => setAnnotationType('comment')}
                       className="text-brand-600"
                     />
-                    <span className="text-sm text-gray-600">Comment</span>
+                    <span className="text-mobile-sm text-site-600">Comment</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex items-center gap-1.5 cursor-pointer min-h-touch">
                     <input
                       type="radio"
                       name="annotationType"
@@ -327,16 +331,17 @@ export default function PMReportsPage() {
                       onChange={() => setAnnotationType('amendment_request')}
                       className="text-amber-600"
                     />
-                    <span className="text-sm text-amber-700">Request Amendment</span>
+                    <span className="text-mobile-sm text-amber-700">Request Amendment</span>
                   </label>
                 </div>
                 <button
                   onClick={addAnnotation}
-                  className={`ml-auto text-sm ${
+                  className={clsx(
+                    'w-full xs:w-auto xs:ml-auto',
                     annotationType === 'amendment_request'
                       ? 'btn-secondary border-amber-300 text-amber-700 hover:bg-amber-50'
-                      : 'btn-primary'
-                  }`}
+                      : 'btn-brand'
+                  )}
                   disabled={submittingAnnotation || !annotationText.trim()}
                 >
                   {submittingAnnotation
@@ -355,13 +360,19 @@ export default function PMReportsPage() {
 
   // List view
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in px-4 pt-4 pb-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Reports</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{site.name}</p>
+          <h1 className="text-mobile-xl font-bold text-site-800">Reports</h1>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <MapPin className="w-3 h-3 text-site-400" />
+            <p className="text-mobile-xs text-site-500">{site.name}</p>
+          </div>
         </div>
-        <span className="text-sm text-gray-400">{reports.length} total</span>
+        <span className="text-mobile-sm text-site-400 bg-site-100 px-2.5 py-1 rounded-full font-medium">
+          {reports.length} total
+        </span>
       </div>
 
       {loading ? (
@@ -378,36 +389,32 @@ export default function PMReportsPage() {
             <button
               key={r.id}
               onClick={() => loadDetail(r.id)}
-              className="card w-full text-left hover:border-brand-300 transition-colors"
+              className="card w-full text-left hover:border-brand-300 active:scale-[0.98] transition-all"
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-gray-800">
+                    <span className="text-mobile-sm font-medium text-site-800">
                       {formatShortDate(r.reportDate)}
                     </span>
                     <span className={`badge badge-${r.status}`}>{r.status}</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-mobile-xs text-site-500 mt-0.5">
                     by {r.createdBy.displayName}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-400 flex-shrink-0 ml-3">
+                <div className="flex items-center gap-3 text-mobile-xs text-site-400 flex-shrink-0 ml-3">
                   <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    </svg>
+                    <Camera className="w-3.5 h-3.5" />
                     {r.evidence.length}
                   </span>
                   <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                    </svg>
+                    <MessageSquare className="w-3.5 h-3.5" />
                     {r._count.annotations}
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 mt-1.5 line-clamp-2">{r.workSummary}</p>
+              <p className="text-mobile-sm text-site-600 mt-1.5 line-clamp-2">{r.workSummary}</p>
             </button>
           ))}
         </div>

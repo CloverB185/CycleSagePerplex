@@ -5,6 +5,17 @@ import { useToast } from '@/components/ToastProvider'
 import LoadingSkeleton from '@/components/LoadingSkeleton'
 import EmptyState from '@/components/EmptyState'
 import { useState, useEffect, useCallback, Suspense } from 'react'
+import clsx from 'clsx'
+import {
+  CalendarClock,
+  Lock,
+  CheckCircle2,
+  Clock,
+  ClipboardList,
+  Package,
+  AlertTriangle,
+  ChevronRight,
+} from 'lucide-react'
 
 type Plan = {
   id: string
@@ -122,51 +133,71 @@ function TomorrowPlanInner() {
   const previousPlans = plans.filter((p) => p.planDate !== tomorrowStr)
 
   return (
-    <div className="space-y-4 animate-fade-in pb-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">Tomorrow Plan</h1>
-        <span className="text-sm text-gray-500">
-          {tomorrow.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
+    <div className="space-y-4 animate-fade-in pb-8 px-4 pt-4">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 rounded-2xl p-4 text-white">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <CalendarClock className="w-5 h-5 text-brand-200 flex-shrink-0" />
+              <span className="text-mobile-sm font-medium text-brand-200">Tomorrow Plan</span>
+            </div>
+            <h1 className="text-mobile-xl font-bold">
+              {tomorrow.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h1>
+          </div>
+          {plan && (
+            <div className="flex items-center gap-1.5 bg-green-500/20 border border-green-400/30 rounded-xl px-2.5 py-1.5 flex-shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+              <span className="text-mobile-xs font-bold text-green-300">Saved</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-site-200">
         <button
           onClick={() => setTab('edit')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={clsx(
+            'px-4 py-2.5 text-mobile-sm font-medium border-b-2 transition-colors min-h-touch',
             tab === 'edit'
               ? 'border-brand-600 text-brand-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
+              : 'border-transparent text-site-500 hover:text-site-700'
+          )}
         >
-          Tomorrow&apos;s Plan
+          <span className="flex items-center gap-1.5">
+            <ClipboardList className="w-4 h-4" />
+            Tomorrow&apos;s Plan
+          </span>
         </button>
         <button
           onClick={() => setTab('history')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={clsx(
+            'px-4 py-2.5 text-mobile-sm font-medium border-b-2 transition-colors min-h-touch',
             tab === 'history'
               ? 'border-brand-600 text-brand-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
+              : 'border-transparent text-site-500 hover:text-site-700'
+          )}
         >
-          History ({previousPlans.length})
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4" />
+            History ({previousPlans.length})
+          </span>
         </button>
       </div>
 
       {tab === 'edit' ? (
         <div className="space-y-4">
           {isLocked && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+            <div className="bg-brand-50 border border-brand-200 text-brand-800 px-4 py-3 rounded-xl text-mobile-sm flex items-center gap-2">
+              <Lock className="w-4 h-4 flex-shrink-0" />
               This plan is locked — the plan date has arrived.
             </div>
           )}
 
-          {plan && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+          {plan && !isLocked && (
+            <div className="flex items-center gap-2 text-mobile-xs text-site-400">
               <span className="badge bg-green-100 text-green-700">Saved</span>
               Last updated {new Date(plan.updatedAt).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}
             </div>
@@ -174,7 +205,8 @@ function TomorrowPlanInner() {
 
           <div className="card space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
+                <ClipboardList className="w-4 h-4 inline mr-1.5 text-site-400" />
                 Planned tasks <span className="text-safety-red">*</span>
               </label>
               <textarea
@@ -185,13 +217,16 @@ function TomorrowPlanInner() {
                 placeholder="List what you plan to do tomorrow..."
                 disabled={!!isLocked}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-mobile-xs text-site-400 mt-1">
                 {tasks.trim().split('\n').filter(Boolean).length} task line(s)
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Required resources</label>
+              <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
+                <Package className="w-4 h-4 inline mr-1.5 text-site-400" />
+                Required resources
+              </label>
               <textarea
                 className="textarea-field"
                 rows={2}
@@ -203,7 +238,10 @@ function TomorrowPlanInner() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Known risks</label>
+              <label className="block text-mobile-sm font-medium text-site-700 mb-1.5">
+                <AlertTriangle className="w-4 h-4 inline mr-1.5 text-safety-amber" />
+                Known risks
+              </label>
               <textarea
                 className="textarea-field"
                 rows={2}
@@ -240,22 +278,31 @@ function TomorrowPlanInner() {
               return (
                 <div key={p.id} className="card">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-mobile-sm font-medium text-site-700">
                       {planDate.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </span>
-                    <span className={`badge ${isPast ? 'bg-gray-100 text-gray-600' : 'bg-brand-100 text-brand-700'}`}>
+                    <span className={clsx(
+                      'badge',
+                      isPast ? 'bg-site-100 text-site-600' : 'bg-brand-100 text-brand-700'
+                    )}>
                       {isPast ? 'Past' : 'Upcoming'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 whitespace-pre-line">{p.tasks}</p>
+                  <p className="text-mobile-sm text-site-600 whitespace-pre-line">{p.tasks}</p>
                   {p.requiredResources && (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-xs text-gray-400">Resources: {p.requiredResources}</p>
+                    <div className="mt-2 pt-2 border-t border-site-100">
+                      <p className="text-mobile-xs text-site-400">
+                        <Package className="w-3 h-3 inline mr-1" />
+                        {p.requiredResources}
+                      </p>
                     </div>
                   )}
                   {p.knownRisks && (
                     <div className="mt-1">
-                      <p className="text-xs text-amber-500">Risks: {p.knownRisks}</p>
+                      <p className="text-mobile-xs text-safety-amber">
+                        <AlertTriangle className="w-3 h-3 inline mr-1" />
+                        {p.knownRisks}
+                      </p>
                     </div>
                   )}
                 </div>
