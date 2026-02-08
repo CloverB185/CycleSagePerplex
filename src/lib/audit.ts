@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 
-export type AuditAction = 'create' | 'update' | 'archive' | 'submit' | 'status_change'
+export type AuditAction = 'create' | 'update' | 'archive' | 'submit' | 'status_change' | 'login' | 'logout' | 'login_failed'
 
 export async function logAudit(params: {
   entityType: string

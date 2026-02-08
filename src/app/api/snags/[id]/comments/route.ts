@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { apiHandler } from '@/lib/api-helpers'
+import { apiHandler, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 
@@ -20,6 +20,11 @@ export const POST = apiHandler(async (req, context: unknown) => {
   // Foremen can only comment on snags they created or own
   if (user.role === 'foreman' && snag.createdById !== user.id && snag.ownerId !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
+
+  // Idempotency check
+  if (await checkSyncDedup(body.syncActionId)) {
+    return NextResponse.json({ deduplicated: true })
   }
 
   const { content } = body
@@ -45,6 +50,10 @@ export const POST = apiHandler(async (req, context: unknown) => {
     performedById: user.id,
     changesAfter: { snagId, content },
   })
+
+  if (body.syncActionId) {
+    await recordSyncAction(body.syncActionId, user.id, 'createSnagComment', { commentId: comment.id })
+  }
 
   return NextResponse.json({ comment }, { status: 201 })
 })

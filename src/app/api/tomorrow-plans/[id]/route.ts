@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { apiHandler, ImmutabilityError } from '@/lib/api-helpers'
+import { apiHandler, ImmutabilityError, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertOwnership } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 
@@ -17,6 +17,11 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
   }
 
   assertOwnership(user, plan.createdById)
+
+  // Idempotency check
+  if (await checkSyncDedup(body.syncActionId)) {
+    return NextResponse.json({ plan, deduplicated: true })
+  }
 
   // Immutability: cannot edit after planDate arrives
   const today = new Date().toISOString().split('T')[0]
@@ -41,6 +46,10 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
     performedById: user.id,
     changesAfter: updates,
   })
+
+  if (body.syncActionId) {
+    await recordSyncAction(body.syncActionId, user.id, 'updateTomorrowPlan', { planId: id })
+  }
 
   return NextResponse.json({ plan: updated })
 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { apiHandler, ImmutabilityError } from '@/lib/api-helpers'
+import { apiHandler, ImmutabilityError, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess, assertOwnership } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 
@@ -50,6 +50,11 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
     return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   }
 
+  // Idempotency check
+  if (await checkSyncDedup(body.syncActionId)) {
+    return NextResponse.json({ report, deduplicated: true })
+  }
+
   // Immutability: cannot edit submitted reports
   if (report.status === 'submitted') {
     throw new ImmutabilityError('Cannot modify a submitted daily report. Use annotations for corrections.')
@@ -61,6 +66,11 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
 
   // Submit action
   if (action === 'submit') {
+    // Evidence warning (PRD: report submission WARNS if no evidence)
+    const evidenceCount = await prisma.evidence.count({
+      where: { contextType: 'daily_report', contextId: id },
+    })
+
     const updated = await prisma.dailyReport.update({
       where: { id },
       data: {
@@ -85,7 +95,14 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
       changesAfter: { status: 'submitted', submittedAt: updated.submittedAt },
     })
 
-    return NextResponse.json({ report: updated })
+    if (body.syncActionId) {
+      await recordSyncAction(body.syncActionId, user.id, 'submitDailyReport', { reportId: id })
+    }
+
+    return NextResponse.json({
+      report: updated,
+      warnings: evidenceCount === 0 ? ['No evidence attached to this report'] : [],
+    })
   }
 
   // Regular draft update
@@ -108,6 +125,10 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
     performedById: user.id,
     changesAfter: updates,
   })
+
+  if (body.syncActionId) {
+    await recordSyncAction(body.syncActionId, user.id, 'updateDailyReport', { reportId: id })
+  }
 
   return NextResponse.json({ report: updated })
 })

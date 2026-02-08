@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyPassword, createSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit'
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +13,17 @@ export async function POST(req: Request) {
 
     const user = await verifyPassword(email, password)
     if (!user) {
+      // Log failed login attempt
+      const attemptedUser = await prisma.user.findUnique({ where: { email } })
+      if (attemptedUser) {
+        await logAudit({
+          entityType: 'User',
+          entityId: attemptedUser.id,
+          action: 'login_failed',
+          performedById: attemptedUser.id,
+          changesAfter: { email, reason: 'invalid_password' },
+        })
+      }
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
@@ -19,6 +31,14 @@ export async function POST(req: Request) {
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
+    })
+
+    await logAudit({
+      entityType: 'User',
+      entityId: user.id,
+      action: 'login',
+      performedById: user.id,
+      changesAfter: { email: user.email, role: user.role },
     })
 
     return NextResponse.json({ user })

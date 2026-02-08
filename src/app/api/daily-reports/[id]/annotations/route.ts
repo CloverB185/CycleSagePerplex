@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { apiHandler } from '@/lib/api-helpers'
+import { apiHandler, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 
@@ -21,6 +21,11 @@ export const POST = apiHandler(async (req, context: unknown) => {
   // Foremen can only annotate their own reports
   if (user.role === 'foreman' && report.createdById !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
+
+  // Idempotency check
+  if (await checkSyncDedup(body.syncActionId)) {
+    return NextResponse.json({ deduplicated: true })
   }
 
   const { content, annotationType } = body
@@ -57,6 +62,10 @@ export const POST = apiHandler(async (req, context: unknown) => {
     performedById: user.id,
     changesAfter: { dailyReportId, content, annotationType },
   })
+
+  if (body.syncActionId) {
+    await recordSyncAction(body.syncActionId, user.id, 'createAnnotation', { annotationId: annotation.id })
+  }
 
   return NextResponse.json({ annotation }, { status: 201 })
 })

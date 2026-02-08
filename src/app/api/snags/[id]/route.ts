@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { apiHandler, ImmutabilityError } from '@/lib/api-helpers'
+import { apiHandler, ImmutabilityError, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 
@@ -47,6 +47,11 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
   const snag = await prisma.snag.findUnique({ where: { id } })
   if (!snag) {
     return NextResponse.json({ error: 'Snag not found' }, { status: 404 })
+  }
+
+  // Idempotency check
+  if (await checkSyncDedup(body.syncActionId)) {
+    return NextResponse.json({ snag, deduplicated: true })
   }
 
   // Closed snags cannot be modified
@@ -129,6 +134,10 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
     changesBefore,
     changesAfter: updates,
   })
+
+  if (body.syncActionId) {
+    await recordSyncAction(body.syncActionId, user.id, 'updateSnag', { snagId: id })
+  }
 
   return NextResponse.json({ snag: updated })
 })

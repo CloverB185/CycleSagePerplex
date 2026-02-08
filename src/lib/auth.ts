@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
+import { createHmac } from 'crypto'
 
 export type SessionUser = {
   id: string
@@ -11,12 +12,40 @@ export type SessionUser = {
 }
 
 const SESSION_COOKIE = 'onsitepro_session'
+// In production, use a strong secret from environment variable
+const SESSION_SECRET = process.env.SESSION_SECRET || 'onsitepro-hmac-secret-change-in-production'
 
-// Simple session: store user ID in a signed cookie
-// In production, use JWT or proper session store
+function signPayload(payload: string): string {
+  return createHmac('sha256', SESSION_SECRET).update(payload).digest('hex')
+}
+
+function createSignedToken(data: Record<string, unknown>): string {
+  const payload = Buffer.from(JSON.stringify(data)).toString('base64')
+  const signature = signPayload(payload)
+  return `${payload}.${signature}`
+}
+
+function verifySignedToken(token: string): Record<string, unknown> | null {
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+  const [payload, signature] = parts
+  const expectedSig = signPayload(payload)
+  // Constant-time comparison to prevent timing attacks
+  if (signature.length !== expectedSig.length) return null
+  let mismatch = 0
+  for (let i = 0; i < signature.length; i++) {
+    mismatch |= signature.charCodeAt(i) ^ expectedSig.charCodeAt(i)
+  }
+  if (mismatch !== 0) return null
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64').toString())
+  } catch {
+    return null
+  }
+}
+
 export async function createSession(userId: string): Promise<string> {
-  // Base64-encode the user ID as a simple session token
-  const token = Buffer.from(JSON.stringify({ userId, ts: Date.now() })).toString('base64')
+  const token = createSignedToken({ userId, ts: Date.now() })
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -33,10 +62,12 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = cookieStore.get(SESSION_COOKIE)?.value
   if (!token) return null
 
+  const data = verifySignedToken(token)
+  if (!data || !data.userId) return null
+
   try {
-    const { userId } = JSON.parse(Buffer.from(token, 'base64').toString())
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: data.userId as string },
       select: {
         id: true,
         email: true,
