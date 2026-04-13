@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { apiHandler } from '@/lib/api-helpers'
 
 export const GET = apiHandler(async () => {
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
 
   if (user.role === 'foreman') {
     // Foremen only see assigned sites

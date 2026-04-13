@@ -10,7 +10,7 @@ import crypto from 'crypto'
 
 // GET: List evidence for a context
 export const GET = apiHandler(async (req) => {
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
   const { searchParams } = new URL(req.url)
   const siteId = searchParams.get('siteId')
   const contextType = searchParams.get('contextType')

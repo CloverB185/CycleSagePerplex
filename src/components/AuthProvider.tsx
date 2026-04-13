@@ -6,7 +6,7 @@ type User = {
   id: string
   email: string
   displayName: string
-  role: 'foreman' | 'pm' | 'admin'
+  role: 'foreman' | 'pm' | 'admin' | 'owner'
   organizationId: string
 }
 

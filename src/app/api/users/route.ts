@@ -5,7 +5,7 @@ import { apiHandler } from '@/lib/api-helpers'
 
 // GET: List users (for snag owner selection, etc.)
 export const GET = apiHandler(async (req) => {
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
   const { searchParams } = new URL(req.url)
   const siteId = searchParams.get('siteId')
 

@@ -50,6 +50,17 @@ async function main() {
     },
   })
 
+  const owner = await prisma.user.create({
+    data: {
+      id: 'user-owner-001',
+      organizationId: org.id,
+      email: 'owner@buildright.co.za',
+      displayName: 'David Owner',
+      passwordHash: hash,
+      role: 'owner',
+    },
+  })
+
   const foreman2 = await prisma.user.create({
     data: {
       id: 'user-foreman-002',
@@ -93,6 +104,24 @@ async function main() {
     ],
   })
 
+  // Create default guardrails configs for sites
+  await prisma.guardrailsConfig.createMany({
+    data: [
+      {
+        siteId: liveSite.id,
+        requireEvidenceOnReportSubmit: false,
+        requireEvidenceOnSnagClose: true,
+        allowOverrideOnEvidenceGate: true,
+      },
+      {
+        siteId: testSite.id,
+        requireEvidenceOnReportSubmit: false,
+        requireEvidenceOnSnagClose: false,
+        allowOverrideOnEvidenceGate: true,
+      },
+    ],
+  })
+
   // Create a sample checklist template
   await prisma.checklistTemplate.create({
     data: {
@@ -115,6 +144,7 @@ async function main() {
   console.log('Seed complete!')
   console.log('')
   console.log('Test accounts (password: password123):')
+  console.log('  Owner:   owner@buildright.co.za')
   console.log('  Admin:   admin@buildright.co.za')
   console.log('  PM:      pm@buildright.co.za')
   console.log('  Foreman: thabo@buildright.co.za')

@@ -36,7 +36,7 @@ export default function NavBar() {
 
   if (!user) return null
 
-  const roleHome = user.role === 'foreman' ? '/foreman' : '/pm'
+  const roleHome = user.role === 'foreman' ? '/foreman' : user.role === 'owner' ? '/owner' : '/pm'
 
   const foremanLinks: NavLink[] = [
     { href: '/foreman', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,12 +58,23 @@ export default function NavBar() {
     { href: '/admin', label: 'Admin', icon: Shield },
   ]
 
-  const links = user.role === 'foreman' ? foremanLinks : user.role === 'admin' ? adminLinks : pmLinks
+  const ownerLinks: NavLink[] = [
+    { href: '/owner', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/pm/reports', label: 'Reports', icon: FileText },
+    { href: '/pm/snags', label: 'Snags', icon: AlertTriangle },
+    { href: '/admin', label: 'Admin', icon: Shield },
+  ]
+
+  const links = user.role === 'foreman' ? foremanLinks
+    : user.role === 'owner' ? ownerLinks
+    : user.role === 'admin' ? adminLinks
+    : pmLinks
 
   const roleBadgeStyles: Record<string, string> = {
     foreman: 'bg-construction-100 text-construction-700 border-construction-200',
     pm: 'bg-brand-100 text-brand-700 border-brand-200',
     admin: 'bg-purple-100 text-purple-700 border-purple-200',
+    owner: 'bg-amber-100 text-amber-700 border-amber-200',
   }
 
   const handleNav = (href: string) => {

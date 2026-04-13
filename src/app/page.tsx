@@ -19,6 +19,7 @@ export default function Home() {
       if (user.role === 'foreman') router.push('/foreman')
       else if (user.role === 'pm') router.push('/pm')
       else if (user.role === 'admin') router.push('/admin')
+      else if (user.role === 'owner') router.push('/owner')
     }
   }, [user, loading, router])
 
@@ -147,6 +148,9 @@ export default function Home() {
               </p>
               <p>
                 <span className="text-brand-300">Admin:</span> admin@buildright.co.za
+              </p>
+              <p>
+                <span className="text-brand-300">Owner:</span> owner@buildright.co.za
               </p>
               <p className="text-brand-500 mt-1">Password: password123</p>
             </div>

@@ -7,7 +7,7 @@ import { logAudit } from '@/lib/audit'
 
 // GET: List snags for a site
 export const GET = apiHandler(async (req) => {
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
   const { searchParams } = new URL(req.url)
   const siteId = searchParams.get('siteId')
   const status = searchParams.get('status')

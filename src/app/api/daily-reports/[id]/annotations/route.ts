@@ -8,7 +8,7 @@ import { logAudit } from '@/lib/audit'
 // POST: Add an annotation to a daily report
 export const POST = apiHandler(async (req, context: unknown) => {
   const { id: dailyReportId } = (context as { params: { id: string } }).params
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
   const body = await req.json()
 
   const report = await prisma.dailyReport.findUnique({ where: { id: dailyReportId } })

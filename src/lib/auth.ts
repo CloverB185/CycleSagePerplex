@@ -3,12 +3,26 @@ import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
 import { createHmac } from 'crypto'
 
+export type UserRole = 'foreman' | 'pm' | 'admin' | 'owner'
+
 export type SessionUser = {
   id: string
   email: string
   displayName: string
-  role: 'foreman' | 'pm' | 'admin'
+  role: UserRole
   organizationId: string
+}
+
+/** Management-class: ADMIN + OWNER — elevated governance, overrides, exception approval */
+export function isManagementClass(role: string): boolean {
+  return role === 'admin' || role === 'owner'
+}
+
+/** Require management-class role or throw */
+export function requireManagementClass(user: SessionUser | null): SessionUser {
+  if (!user) throw new AuthError('Not authenticated', 401)
+  if (!isManagementClass(user.role)) throw new AuthError('Management-class role required', 403)
+  return user
 }
 
 const SESSION_COOKIE = 'onsitepro_session'
@@ -98,7 +112,7 @@ export async function verifyPassword(email: string, password: string) {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
-    role: user.role as SessionUser['role'],
+    role: user.role as UserRole,
     organizationId: user.organizationId,
   }
 }

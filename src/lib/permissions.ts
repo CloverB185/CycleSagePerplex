@@ -24,7 +24,7 @@ export function assertRole(user: SessionUser, ...allowedRoles: string[]) {
  * PMs and admins skip this check (they have org-wide access).
  */
 export async function assertSiteAccess(user: SessionUser, siteId: string) {
-  if (user.role === 'admin' || user.role === 'pm') return
+  if (user.role === 'admin' || user.role === 'owner' || user.role === 'pm') return
 
   const hasAccess = await verifySiteAssignment(user.id, siteId)
   if (!hasAccess) {
@@ -36,7 +36,7 @@ export async function assertSiteAccess(user: SessionUser, siteId: string) {
  * Ensure the user owns a specific record (for foreman edit operations).
  */
 export function assertOwnership(user: SessionUser, recordCreatedById: string) {
-  if (user.role === 'admin') return // Admins can access anything
+  if (user.role === 'admin' || user.role === 'owner') return // Management-class can access anything
   if (user.id !== recordCreatedById) {
     throw new PermissionError('You can only modify your own records')
   }

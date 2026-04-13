@@ -26,7 +26,7 @@ model User {
   email          String   @unique
   displayName    String
   passwordHash   String
-  role           String   // "foreman" | "pm" | "admin"
+  role           String   // "foreman" | "pm" | "admin" | "owner"
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -47,6 +47,7 @@ model User {
   checklistSubmissions  ChecklistSubmission[]
   syncActions           SyncAction[]
   auditLogs             AuditLog[]
+  actionOverrides       ActionOverride[]
 
   @@index([organizationId])
   @@index([role])
@@ -72,6 +73,7 @@ model Site {
   evidence              Evidence[]
   snags                 Snag[]
   checklistSubmissions  ChecklistSubmission[]
+  guardrailsConfig      GuardrailsConfig?
 
   @@index([organizationId])
   @@index([isTestSite])
@@ -188,6 +190,10 @@ model Evidence {
   imageWidthPx      Int?
   imageHeightPx     Int?
   isArchived        Boolean  @default(false)
+  status            String   @default("uploaded") // "pending" | "uploading" | "uploaded" | "failed"
+  localBlobRef      String?  // for future offline blob tracking
+  uploadError       String?  // last failure reason
+  uploadAttempts    Int      @default(0)
   syncActionId      String?  @unique
   createdAt         DateTime @default(now())
 
@@ -204,6 +210,7 @@ model Evidence {
   @@index([contextType, contextId])
   @@index([evidenceType])
   @@index([deviceTimestamp])
+  @@index([status])
 }
 
 // ─── Snag ────────────────────────────────────────────────────
@@ -304,8 +311,12 @@ model SyncAction {
   actionType   String    // "createDailyReport" | "submitDailyReport" | etc.
   payload      String    // JSON string
   status       String    @default("pending") // "pending" | "in_progress" | "completed" | "failed"
+  queueStatus  String    @default("queued") // "queued" | "processing" | "completed" | "failed"
   retryCount   Int       @default(0)
   lastError    String?
+  retryAfter   DateTime? // when to retry after failure
+  source       String    @default("online") // "online" | "offline"
+  siteId       String?   // for queue filtering by site
   createdAt    DateTime  @default(now())
   processedAt  DateTime?
 
@@ -314,7 +325,41 @@ model SyncAction {
   @@index([syncActionId])
   @@index([userId])
   @@index([status])
+  @@index([queueStatus])
   @@index([actionType])
+  @@index([siteId])
+}
+
+// ─── Guardrails Config ───────────────────────────────────────
+model GuardrailsConfig {
+  id                             String   @id @default(uuid())
+  siteId                         String   @unique
+  requireEvidenceOnReportSubmit  Boolean  @default(false)
+  requireEvidenceOnSnagClose     Boolean  @default(true)
+  allowOverrideOnEvidenceGate    Boolean  @default(true)
+  maxDraftAgeDays                Int?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id])
+}
+
+// ─── Action Override ─────────────────────────────────────────
+model ActionOverride {
+  id              String   @id @default(uuid())
+  entityType      String   // "snag" | "daily_report"
+  entityId        String
+  action          String   // "close_without_evidence" | "submit_without_evidence"
+  overrideReason  String
+  performedById   String
+  performedAt     DateTime @default(now())
+  siteId          String
+
+  performedBy User @relation(fields: [performedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([performedById])
+  @@index([siteId])
 }
 
 // ─── Audit Log ───────────────────────────────────────────────

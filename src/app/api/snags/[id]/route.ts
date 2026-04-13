@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession, requireRole } from '@/lib/auth'
+import { getSession, requireRole, isManagementClass } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { apiHandler, ImmutabilityError, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess } from '@/lib/permissions'
@@ -8,7 +8,7 @@ import { logAudit } from '@/lib/audit'
 // GET: Get a single snag with comments and evidence
 export const GET = apiHandler(async (_req, context: unknown) => {
   const { id } = (context as { params: { id: string } }).params
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
 
   const snag = await prisma.snag.findUnique({
     where: { id },
@@ -41,7 +41,7 @@ export const GET = apiHandler(async (_req, context: unknown) => {
 // PATCH: Update snag status or owner
 export const PATCH = apiHandler(async (req, context: unknown) => {
   const { id } = (context as { params: { id: string } }).params
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
   const body = await req.json()
 
   const snag = await prisma.snag.findUnique({ where: { id } })
@@ -89,16 +89,47 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
       )
     }
 
-    // Closure requires evidence
+    // Closure: check guardrails for evidence requirement
     if (body.status === 'closed') {
-      const evidenceCount = await prisma.evidence.count({
-        where: { contextType: 'snag', contextId: id },
-      })
-      if (evidenceCount === 0) {
-        return NextResponse.json(
-          { error: 'Resolution evidence required to close this snag. Upload evidence first.' },
-          { status: 400 }
-        )
+      const guardrails = await prisma.guardrailsConfig.findUnique({ where: { siteId: snag.siteId } })
+      const requireEvidence = guardrails?.requireEvidenceOnSnagClose ?? true
+
+      if (requireEvidence) {
+        const evidenceCount = await prisma.evidence.count({
+          where: { contextType: 'snag', contextId: id },
+        })
+        if (evidenceCount === 0) {
+          // Management-class can override if allowed
+          if (isManagementClass(user.role) && (guardrails?.allowOverrideOnEvidenceGate ?? true) && body.overrideReason) {
+            await prisma.actionOverride.create({
+              data: {
+                entityType: 'snag',
+                entityId: id,
+                action: 'close_without_evidence',
+                overrideReason: body.overrideReason,
+                performedById: user.id,
+                siteId: snag.siteId,
+              },
+            })
+            await logAudit({
+              entityType: 'Snag',
+              entityId: id,
+              action: 'override',
+              performedById: user.id,
+              changesAfter: { action: 'close_without_evidence', reason: body.overrideReason },
+            })
+          } else if (isManagementClass(user.role) && (guardrails?.allowOverrideOnEvidenceGate ?? true)) {
+            return NextResponse.json(
+              { error: 'Evidence required. As management, provide overrideReason to proceed.', requiresOverride: true },
+              { status: 400 }
+            )
+          } else {
+            return NextResponse.json(
+              { error: 'Resolution evidence required to close this snag. Upload evidence first.' },
+              { status: 400 }
+            )
+          }
+        }
       }
       updates.closedAt = new Date()
       updates.closedById = user.id

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession, requireRole } from '@/lib/auth'
+import { getSession, requireRole, isManagementClass } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { apiHandler, ImmutabilityError, checkSyncDedup, recordSyncAction } from '@/lib/api-helpers'
 import { assertSiteAccess, assertOwnership } from '@/lib/permissions'
@@ -8,7 +8,7 @@ import { logAudit } from '@/lib/audit'
 // GET: Get a single daily report
 export const GET = apiHandler(async (_req, context: unknown) => {
   const { id } = (context as { params: { id: string } }).params
-  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin')
+  const user = requireRole(await getSession(), 'foreman', 'pm', 'admin', 'owner')
 
   const report = await prisma.dailyReport.findUnique({
     where: { id },
@@ -66,10 +66,45 @@ export const PATCH = apiHandler(async (req, context: unknown) => {
 
   // Submit action
   if (action === 'submit') {
-    // Evidence warning (PRD: report submission WARNS if no evidence)
+    const guardrails = await prisma.guardrailsConfig.findUnique({ where: { siteId: report.siteId } })
+    const requireEvidence = guardrails?.requireEvidenceOnReportSubmit ?? false
+
     const evidenceCount = await prisma.evidence.count({
       where: { contextType: 'daily_report', contextId: id },
     })
+
+    // Block submission if evidence required and none attached
+    if (requireEvidence && evidenceCount === 0) {
+      if (isManagementClass(user.role) && (guardrails?.allowOverrideOnEvidenceGate ?? true) && body.overrideReason) {
+        await prisma.actionOverride.create({
+          data: {
+            entityType: 'daily_report',
+            entityId: id,
+            action: 'submit_without_evidence',
+            overrideReason: body.overrideReason,
+            performedById: user.id,
+            siteId: report.siteId,
+          },
+        })
+        await logAudit({
+          entityType: 'DailyReport',
+          entityId: id,
+          action: 'override',
+          performedById: user.id,
+          changesAfter: { action: 'submit_without_evidence', reason: body.overrideReason },
+        })
+      } else if (isManagementClass(user.role) && (guardrails?.allowOverrideOnEvidenceGate ?? true)) {
+        return NextResponse.json(
+          { error: 'Evidence required. As management, provide overrideReason to proceed.', requiresOverride: true },
+          { status: 400 }
+        )
+      } else {
+        return NextResponse.json(
+          { error: 'Evidence required to submit this report. Upload evidence first.' },
+          { status: 400 }
+        )
+      }
+    }
 
     const updated = await prisma.dailyReport.update({
       where: { id },
